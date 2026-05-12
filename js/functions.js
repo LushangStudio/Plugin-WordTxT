@@ -217,6 +217,71 @@ function normalizeMemoLayoutText(text){
   return s;
 }
 
+function sanitizeGeneratedNoticeText(input){
+  let s = String(input || '').replace(/\r/g, '');
+
+  s = s
+    .replace(/^\s*```(?:markdown|md|text)?\s*/i, '')
+    .replace(/\s*```\s*$/i, '')
+    .replace(/(^|\n)\s*```[A-Za-z0-9_-]*\s*(?=\n|$)/g, '$1')
+    .replace(/(^|\n)\s*```\s*(?=\n|$)/g, '$1');
+
+  s = s
+    .replace(/(^|\n)\s*(?:通知开头|通知结尾|开头|结尾)[:：]\s*/g, '$1')
+    .replace(/(^|\n)\s{0,3}#{1,6}\s*/g, '$1')
+    .replace(/!\[([^\]\n]*)\]\(([^)\n]+)\)/g, '$1 $2')
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1：$2')
+    .replace(/<(?!!--TABLE_PLACEHOLDER_\d+--)[^>\n]+>/g, '')
+    .replace(/\*\*([^*\n]+?)\*\*/g, '$1')
+    .replace(/__([^_\n]+?)__/g, '$1')
+    .replace(/\*([^*\n]+?)\*/g, '$1')
+    .replace(/`([^`\n]+?)`/g, '$1')
+    .replace(/(^|\n)\s{0,3}>\s?/g, '$1')
+    .replace(/(^|\n)\s{0,3}[-*+]\s+/g, '$1')
+    .replace(/[ \t]{2,}\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return s;
+}
+
+function setGeneratedPlainTextOutput(outputEl, text){
+  if (!outputEl) return;
+  outputEl.textContent = sanitizeGeneratedNoticeText(text);
+}
+
+function buildGenerationItemsFromFilteredText(text){
+  const blocks = splitWordTextBlocks(text)
+    .map(block => String(block || '').trim())
+    .filter(Boolean);
+  return blocks.map((text, index) => ({
+    id: `ITEM_${index + 1}`,
+    text
+  }));
+}
+
+function formatGenerationItemsForPrompt(items){
+  return (items || []).map(item => `[${item.id}]\n${item.text}`).join('\n\n');
+}
+
+function getMissingGeneratedItemIds(result, items){
+  const found = new Set();
+  const re = /\[ITEM_(\d+)\]/g;
+  let m;
+  while ((m = re.exec(String(result || ''))) !== null) {
+    found.add(`ITEM_${Number(m[1])}`);
+  }
+  return (items || []).map(item => item.id).filter(id => !found.has(id));
+}
+
+function stripInternalItemMarkers(text){
+  return String(text || '')
+    .replace(/(^|\n)\s*\[ITEM_(\d+)\]\s*(?:\d+[、\.．]\s*)?/g, (match, prefix, n) => `${prefix}${Number(n)}. `)
+    .replace(/\s*\[ITEM_(\d+)\]\s*(?:\d+[、\.．]\s*)?/g, (match, n) => `\n\n${Number(n)}. `)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function removeBigHeaderLines(s){
   const lines = s.split('\n').filter(line=>{
     return !/^\s*(?:\(?[一二三四五六七八九十百千]+\)?|[0-9]+)\s*[、\.．]\s*$/.test(line);
@@ -1647,7 +1712,7 @@ copyResultTextBtn && copyResultTextBtn.addEventListener('click', async () => {
   try {
     const output = document.getElementById('finalNoticeOutput');
     const status = document.getElementById('copyStatus');
-    const text = output ? (output.innerText || output.textContent || '').trim() : '';
+    const text = output ? sanitizeGeneratedNoticeText(output.innerText || output.textContent || '').trim() : '';
     if (!text) {
       if (status) status.textContent = '暂无可复制的结果';
       return;
@@ -2115,7 +2180,22 @@ async function applyWordTextFilter(filterType){
   setWordTextStatus(`已筛选：${blocks.length} 个条目块中保留 ${kept.length} 个，当前约 ${next.length} 字。`, 'success');
 }
 
-function buildFilteredGenerationPrompt({ filteredText, userPrompt, header, footer, contactMode }){
+function buildFilteredGenerationPrompt({ filteredText, userPrompt, header, footer, contactMode, itemCount, retryMissingIds }){
+  const itemRules = itemCount
+    ? `
+逐条改写规则：
+1. “筛选后的原文内容”已经完成筛选，里面的 ${itemCount} 个 [ITEM_n] 都视为必须保留的白名单事项。
+2. 你的任务是逐条改写为学生可读备忘，不得再次筛选，不得擅自删除、跳过或合并任何 [ITEM_n]。
+3. 输出中必须保留每个 [ITEM_n] 标记，且每个标记只能出现一次；标记应放在对应事项正文前。前端会在展示前把这些内部标记转换为 1.、2.、3. 编号。
+4. 即使条目看起来包含院系、辅导员、领取整改单、反馈、审核、汇总等内部动作，只要学生需要知道、配合、签字、整改、参加、报名、提交、领取、关注后果或存在宿舍管理/违规/警示/退宿风险，都必须改写并保留。
+5. 面向全校师生、学生、毕业生、相关同学的征集、活动、报名、讲座、检查通报、整改提醒均必须保留。
+6. 对内部动作可改写为学生视角，例如“相关同学需配合院系完成整改签字和反馈”，不要因此删除整条。
+7. 每个 [ITEM_n] 必须独立成段，不要把多个事项写成一个连续段落。`
+    : '';
+  const retryRule = Array.isArray(retryMissingIds) && retryMissingIds.length
+    ? `
+重要纠错：上一次生成遗漏了 ${retryMissingIds.map(id => `[${id}]`).join('、')}。本次必须重新生成完整备忘，覆盖全部 ${itemCount || ''} 个 [ITEM_n]，不要只补充遗漏项。`
+    : '';
   return `你是高校学工备忘处理助手。请严格依据“筛选后的原文内容”和“辅导员处理要求”生成结果。
 
 硬性规则：
@@ -2126,6 +2206,11 @@ function buildFilteredGenerationPrompt({ filteredText, userPrompt, header, foote
 5. 如果用户填写了开头和结尾，请自然合并，不要重复。
 6. 输出应适合直接复制使用。
 7. 不要解释你的处理过程，只输出最终结果。
+8. 只输出纯文本，不使用 Markdown、HTML 或富文本标记。
+9. 禁止输出 **加粗**、# 标题、- 列表、代码块、Markdown 链接等语法。
+10. 不要输出“通知开头：”“通知结尾：”“辅导员处理要求：”等字段名；开头和结尾只保留其正文内容。
+${itemRules}
+${retryRule}
 
 contactMode=${contactMode || 'keep'}
 
@@ -2190,6 +2275,65 @@ async function callChatCompletion(prompt, options){
   }
 }
 
+function buildMissingItemsSupplementPrompt({ missingItems, userPrompt, contactMode }){
+  return `你是高校学工备忘处理助手。上一版备忘遗漏了部分已经筛选通过的事项。请只根据下面缺失的原文条目补写学生可读备忘。
+
+要求：
+1. 缺失条目全部必须输出，不得删除、跳过或合并。
+2. 每条输出前必须保留对应 [ITEM_n] 标记，且标记只能出现一次；每个 [ITEM_n] 独立成段。
+3. 不要写通知开头和结尾，不要解释原因。
+4. 只输出纯文本，不使用 Markdown、HTML、**加粗**、# 标题、- 列表或代码块。
+5. 如果 contactMode=remove，删除联系人和联系电话。
+6. 即使条目包含院系、辅导员、整改、反馈、审核、汇总等内部动作，只要学生需要知道、配合、签字、整改、参加、报名、提交、关注后果或存在宿舍管理/违规/警示/退宿风险，都必须保留并改写为学生视角。
+
+contactMode=${contactMode || 'keep'}
+
+辅导员处理要求：
+${userPrompt || ''}
+
+===== 缺失原文条目开始 =====
+${formatGenerationItemsForPrompt(missingItems || [])}
+===== 缺失原文条目结束 =====`;
+}
+
+async function generateFilteredNoticeWithCoverage({ filteredText, userPrompt, header, footer, contactMode }){
+  const items = buildGenerationItemsFromFilteredText(filteredText);
+  const itemizedText = items.length ? formatGenerationItemsForPrompt(items) : filteredText;
+  const baseArgs = {
+    filteredText: itemizedText,
+    userPrompt,
+    header,
+    footer,
+    contactMode,
+    itemCount: items.length
+  };
+
+  let result = await callChatCompletion(buildFilteredGenerationPrompt(baseArgs));
+  let missingIds = getMissingGeneratedItemIds(result, items);
+
+  if (missingIds.length) {
+    setWordTextStatus(`AI 遗漏 ${missingIds.length} 个筛选条目，正在重新生成完整备忘...`);
+    result = await callChatCompletion(buildFilteredGenerationPrompt({
+      ...baseArgs,
+      retryMissingIds: missingIds
+    }));
+    missingIds = getMissingGeneratedItemIds(result, items);
+  }
+
+  if (missingIds.length) {
+    setWordTextStatus(`AI 仍遗漏 ${missingIds.length} 个筛选条目，正在补写遗漏事项...`);
+    const missingItems = items.filter(item => missingIds.includes(item.id));
+    const supplement = await callChatCompletion(buildMissingItemsSupplementPrompt({
+      missingItems,
+      userPrompt,
+      contactMode
+    }));
+    result = `${result}\n\n${supplement}`;
+  }
+
+  return sanitizeGeneratedNoticeText(stripInternalItemMarkers(result));
+}
+
 async function onExtractWordTextClick(){
   try {
     const f = getCurrentDocxFile();
@@ -2245,17 +2389,15 @@ async function onGenerateFromFilteredTextClick(){
     const header = noticeHeader ? noticeHeader.value.trim() : '';
     const footer = noticeFooter ? noticeFooter.value.trim() : '';
     const contactMode = document.querySelector('input[name="contactMode"]:checked')?.value || 'keep';
-    const prompt = buildFilteredGenerationPrompt({ filteredText, userPrompt, header, footer, contactMode });
-
     if (btn) {
       btn.disabled = true;
       btn.textContent = '生成中…';
     }
     if (output) output.textContent = '生成中…请稍候';
-    setWordTextStatus('正在根据筛选区内容生成备忘…');
+    setWordTextStatus('正在逐条改写筛选区内容，生成前会检查是否漏项…');
 
-    const result = await callChatCompletion(prompt);
-    if (output) output.innerHTML = convertUrlsToLinks(result);
+    const result = await generateFilteredNoticeWithCoverage({ filteredText, userPrompt, header, footer, contactMode });
+    setGeneratedPlainTextOutput(output, result);
     setWordTextStatus('生成完成。发送给 AI 的内容来自筛选区文本。', 'success');
     scrollToResultOutput();
   } catch (e) {
@@ -2349,12 +2491,14 @@ async function studentNoticeGenerator(currentText, tableMap){
 3. 内容调整：只改变与口吻转化相关的部分，其他信息保持不变，不需要添加开头问候语\n
 4. 语气调整：保留原文本语言风格\n
 5. 重要：文本中可能包含形如 <!--TABLE_PLACEHOLDER_1--> 的占位符，它们代表原文中的表格位置。请务必原样保留这些占位符，不要移动、删除或修改，以便后续还原表格。\n
+6. 格式要求：只输出纯文本，不使用 Markdown、HTML 或富文本标记。禁止输出 **加粗**、# 标题、- 列表、代码块、Markdown 链接等语法。\n
+7. 不要输出“通知开头：”“通知结尾：”等字段名；如原文包含开头或结尾内容，请自然保留正文。\n
 \n请转化以下文本：\n${String(currentText || '')}`;
 
     const payload = {
       model,
       messages: [
-        { role: 'system', content: '你是一个文本改写助手，请根据指令进行口吻转换，严格保留段落结构与符号，并保留 <!--TABLE_PLACEHOLDER_n--> 占位符不变。' },
+        { role: 'system', content: '你是一个文本改写助手，请根据指令进行口吻转换，严格保留段落结构与符号，并保留 <!--TABLE_PLACEHOLDER_n--> 占位符不变。输出必须为可直接复制使用的纯文本，不要使用 Markdown。' },
         { role: 'user', content: prompt }
       ],
       temperature,
@@ -2381,6 +2525,7 @@ async function studentNoticeGenerator(currentText, tableMap){
     if (!result) {
       throw new Error('转换结果为空或格式异常');
     }
+    result = sanitizeGeneratedNoticeText(result);
     // 若包含表格占位符，则按占位符顺序还原表格 HTML
     let hasTables = Array.isArray(tableMap) && tableMap.length > 0;
     if (hasTables) {
@@ -2402,11 +2547,11 @@ async function studentNoticeGenerator(currentText, tableMap){
         console.warn(`表格还原数量不一致：期望 ${expected}，实际 ${replacedCount}`);
         alert(`注意：有 ${expected - replacedCount} 个表格未能自动还原，占位符已保留，可手动修复。`);
       }
-      // 输出含 HTML（避免对表格进行 URL 转换导致转义）
+      // 输出含表格 HTML；表格外文本已在上方清洗为纯文本
       output.innerHTML = result;
     } else {
-      // 无表格时，进行 URL 识别并输出
-      output.innerHTML = convertUrlsToLinks(result);
+      // 无表格时保持纯文本展示，不渲染 Markdown 或 HTML
+      setGeneratedPlainTextOutput(output, result);
     }
     // 生成成功后，根据是否存在表格启用“复制表格”按钮
     const cbtn = document.getElementById('copyNoticeBtn');
