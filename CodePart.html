@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<title>学工备忘工作台</title>
+<style>
+  :root {
+    --primary-color: #2563EB;
+    --primary-hover: #1D4ED8;
+    --primary-soft: #EFF6FF;
+    --bg-color: #F6F7F9;
+    --card-bg: #FFFFFF;
+    --border-color: #D9DEE7;
+    --border-strong: #B8C0CC;
+    --text-primary: #111827;
+    --text-secondary: #5F6B7A;
+    --success-color: #047857;
+    --error-color: #B91C1C;
+    --focus-ring: rgba(37, 99, 235, 0.16);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, PingFang SC, Arial;
+    background: var(--bg-color);
+    color: var(--text-primary);
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px;
+    line-height: 1.5;
+  }
+  
+  h1 {
+    font-size: 22px;
+    margin: 0 0 16px;
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+  
+  .card {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 18px;
+    margin: 12px 0;
+    background: var(--card-bg);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+  
+  .card:hover {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  }
+  
+  .row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  
+  input[type="number"],
+  input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  input[type="number"]:focus,
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  
+  input[type="number"] { width: 120px; }
+  input[type="text"] { width: 240px; }
+
+  textarea,
+  select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: vertical;
+    background: #FFFFFF;
+    color: var(--text-primary);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+
+  .filter-actions {
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .filter-actions .btn {
+    padding: 8px 12px;
+    border-color: #CBD5E1;
+    background: #F8FAFC;
+    color: var(--text-primary);
+  }
+
+  .filter-actions .btn:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    background: #EEF2FF;
+    color: var(--primary-color);
+  }
+
+  .field-block {
+    width: 100%;
+    margin: 12px 0;
+  }
+
+  .field-block label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .app-header-card {
+    margin-top: 0;
+    border-top: 3px solid var(--primary-color);
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 10px;
+  }
+
+  .section-desc {
+    display: none;
+  }
+
+  .toolbar-grid {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.4fr) 112px minmax(220px, 1fr) minmax(260px, 1.1fr);
+    gap: 12px;
+    align-items: end;
+  }
+
+  .toolbar-grid label,
+  .setting-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .toolbar-grid input[type="text"],
+  .toolbar-grid input[type="number"],
+  .setting-grid input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .status-stack {
+    display: grid;
+    gap: 6px;
+    align-self: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #F8FAFC;
+  }
+
+  .workflow-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin: 14px 0 10px;
+    padding: 4px;
+    width: fit-content;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #FFFFFF;
+  }
+
+  .tab-btn {
+    padding: 8px 14px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .tab-btn.active {
+    border-color: #BFDBFE;
+    background: var(--primary-soft);
+    color: var(--primary-color);
+  }
+
+  .tab-panel {
+    display: none;
+  }
+
+  .tab-panel.active {
+    display: block;
+  }
+
+  .workflow-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.75fr);
+    gap: 14px;
+  }
+
+  .sub-card {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+    background: #FCFCFD;
+  }
+
+  .button-group,
+  .result-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn.secondary {
+    border-color: #CBD5E1;
+    background: #F8FAFC;
+    color: var(--text-primary);
+  }
+
+  .btn.secondary:hover:not(:disabled) {
+    border-color: var(--primary-color);
+    background: #EEF2FF;
+    color: var(--primary-color);
+  }
+
+  .btn.ghost {
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+  }
+
+  .btn.ghost:hover:not(:disabled) {
+    border-color: var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-primary);
+  }
+
+  .setting-grid {
+    display: grid;
+    gap: 12px;
+  }
+
+  .result-card {
+    scroll-margin-top: 16px;
+    border-color: var(--border-strong);
+  }
+
+  #tableWrap {
+    overflow-x: auto;
+    margin-top: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: #FFFFFF;
+  }
+
+  #wordContentEditor { height: 440px; }
+  #counselorPromptInput { height: 170px; }
+
+  @media (max-width: 860px) {
+    body {
+      margin: 0 auto;
+      padding: 0 12px;
+    }
+
+    .toolbar-grid,
+    .workflow-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .btn {
+      white-space: normal;
+      width: auto;
+    }
+
+    .workflow-tabs {
+      width: 100%;
+    }
+
+    .tab-btn {
+      flex: 1 1 0;
+    }
+
+    .button-group,
+    .result-actions,
+    .radio-group {
+      gap: 6px;
+    }
+
+    .radio-group {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+  }
+  
+  .btn {
+     min-height: 38px;
+     padding: 8px 14px;
+     border: 1px solid var(--primary-color);
+     border-radius: 8px;
+     background: var(--primary-color);
+     color: white;
+     cursor: pointer;
+     font-weight: 500;
+     line-height: 1.25;
+     transition: all 0.2s ease;
+   }
+   
+   .btn:hover:not(:disabled) {
+     background: var(--primary-hover);
+     border-color: var(--primary-hover);
+   }
+   
+   .btn.primary {
+     background: var(--primary-color);
+     color: white;
+     border-color: var(--primary-color);
+   }
+   
+   .btn.primary:hover:not(:disabled) {
+     background: var(--primary-hover);
+     border-color: var(--primary-hover);
+   }
+   
+   .btn:disabled {
+     opacity: 0.6;
+     cursor: not-allowed;
+   }
+  /* 小尺寸按钮（不超过100px） */
+  .btn.tiny {
+    padding: 6px 10px;
+    font-size: 13px;
+    width: 76px; /* 缩小至原来的 ~79%，保持高度不变 */
+    background: #ADD8E6; /* 淡蓝色作为主色调 */
+    border-color: #ADD8E6;
+    color: #111827; /* 深色文字保证对比度 */
+  }
+  .btn.tiny:hover:not(:disabled) {
+    background: #9CCBE1; /* hover 略微加深 */
+    border-color: #9CCBE1;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    margin-top: 0;
+    font-size: 14px;
+  }
+  
+  th, td {
+    border: 1px solid var(--border-color);
+    padding: 10px;
+    vertical-align: top;
+  }
+  
+  th {
+    background: #F8FAFC;
+    font-weight: 600;
+    text-align: left;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  
+  tr:hover td {
+    background-color: rgba(79, 70, 229, 0.02);
+  }
+  
+  .muted {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  
+  .radio-group {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    padding: 8px 0;
+  }
+  
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-primary);
+  }
+  
+  .error { color: var(--error-color); }
+  .success { color: var(--success-color); }
+  
+  .output-box {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    background: #FFFFFF;
+    white-space: pre-wrap;
+    min-height: 80px;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-x: auto;
+  }
+  
+  /* 拖拽排序样式优化 */
+  .drag-cell {
+    width: 40px;
+    text-align: center;
+    background: var(--bg-color);
+  }
+  
+  .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    background: var(--card-bg);
+    cursor: grab;
+    user-select: none;
+    transition: all 0.2s ease;
+  }
+  
+  .drag-handle:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+  
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+  
+  .drag-ghost {
+    opacity: 0.7;
+    background: var(--bg-color);
+  }
+  
+  .drag-chosen {
+    background: rgba(79, 70, 229, 0.05);
+  }
+  
+  /* 分类标题行样式（跨列显示，显著区分） */
+  .category-title-row td.category-cell {
+    background: #F5F7FF;
+    color: #1F2937;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-left: 3px solid var(--primary-color);
+  }
+  .category-title-row td.category-cell::before{
+    content: '▸ ';
+    color: var(--primary-color);
+  }
+
+  /* DOCX 表格渲染样式（保持可读性与美观） */
+  .docx-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    background: var(--card-bg);
+  }
+  .docx-table th, .docx-table td {
+    border: 1px solid #D1D5DB; /* 默认边框；若文档指定颜色将在内联样式覆盖 */
+    padding: 8px 10px;
+    font-size: 14px;
+    vertical-align: top;
+  }
+  .docx-table caption {
+    caption-side: top;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 6px 0 8px;
+  }
+  .docx-table .align-center { text-align: center; }
+  .docx-table .align-right { text-align: right; }
+  .docx-table .valign-middle { vertical-align: middle; }
+  .docx-table .valign-bottom { vertical-align: bottom; }
+
+  .toolbar-grid input[type="file"] {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px dashed var(--border-strong);
+    border-radius: 8px;
+    background: #FFFFFF;
+  }
+
+  .toolbar-grid input[type="file"]::file-selector-button {
+    margin-right: 10px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--primary-soft);
+    color: var(--primary-color);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .field-block {
+    margin-bottom: 8px;
+  }
+
+  .button-group .btn,
+  .result-actions .btn {
+    flex: 0 0 auto;
+  }
+
+  #tableWrap:empty {
+    display: none;
+  }
+
+  #tableWrap table {
+    min-width: 980px;
+  }
+
+  #selectedOutput,
+  #finalNoticeOutput {
+    margin-top: 12px;
+    max-height: 560px;
+    overflow: auto;
+  }
+
+  #wordTextStatus,
+  #wordContentStats,
+  #tableParseStatus,
+  #copyStatus {
+    min-height: 20px;
+  }
+
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 20px;
+    }
+
+    .card {
+      padding: 14px;
+    }
+
+    .sub-card {
+      padding: 12px;
+    }
+
+    #wordContentEditor {
+      height: 360px;
+    }
+
+    #counselorPromptInput {
+      height: 140px;
+    }
+
+    .button-group .btn,
+    .result-actions .btn {
+      flex: 1 1 calc(50% - 6px);
+    }
+  }
+</style>
+</head>
+<body>
+  <h1>Plugin-学工备忘</h1>
+
+  <section class="card app-header-card">
+    <div class="section-title">学工备忘工作台</div>
+    <p class="section-desc">先选择文档与基础设置，再选择“内容筛选”或“表格选择”生成备忘。</p>
+    <div class="toolbar-grid">
+      <label>选择 Word（.docx）
+        <input type="file" id="fileInput" accept=".docx" />
+      </label>
+      <label>起始编号
+        <input type="number" id="startIndex" min="1" value="1" />
+      </label>
+      <label>输出文件名
+        <input type="text" id="outfile" value="通知整理.xlsx" />
+      </label>
+      <div class="status-stack">
+        <span id="status" class="muted">未加载</span>
+        <span id="currentDocName" class="muted">当前文档：未选择</span>
+        <span id="libraryStatus" class="muted">API 状态检测中</span>
+        <span id="activeModeStatus" class="muted">当前模式：内容筛选生成</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="card generation-settings-card">
+    <div class="section-title">通用生成设置</div>
+    <p class="section-desc">内容筛选流程使用提示词；两个工作流共用开头、结尾和联系人处理规则。</p>
+    <div class="workflow-grid">
+      <div class="sub-card">
+        <div class="section-title">提示词</div>
+        <div class="setting-grid">
+          <label for="promptTemplateSelect">提示词模板
+            <select id="promptTemplateSelect"></select>
+          </label>
+          <label for="counselorPromptInput">辅导员个性化提示词
+            <textarea id="counselorPromptInput" placeholder="请选择模板，或直接输入你的个性化处理要求。"></textarea>
+          </label>
+          <div class="button-group">
+            <button class="btn secondary" id="savePromptBtn">保存当前提示词</button>
+            <button class="btn ghost" id="resetPromptBtn">恢复默认提示词</button>
+          </div>
+        </div>
+      </div>
+      <div class="sub-card">
+        <div class="section-title">通知格式</div>
+        <div class="setting-grid">
+          <label>开头
+            <input type="text" id="noticeHeader" placeholder="本周学工备忘如下：" />
+          </label>
+          <label>结尾
+            <input type="text" id="noticeFooter" placeholder="请同学们注意查收。" />
+          </label>
+          <div class="radio-group" title="联系人处理">
+            <label>
+              <input type="radio" name="contactMode" value="keep" checked /> 保留联系人
+            </label>
+            <label>
+              <input type="radio" name="contactMode" value="remove" /> 删除联系人
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="workflow-tabs" role="tablist" aria-label="生成方式">
+    <button class="tab-btn active" type="button" data-tab="filterWorkflow">内容筛选生成</button>
+    <button class="tab-btn" type="button" data-tab="tableWorkflow">表格选择生成</button>
+  </div>
+
+  <div id="filterWorkflow" class="tab-panel active">
+    <section class="card">
+      <div class="workflow-grid">
+        <div class="sub-card">
+          <div class="section-title">1. 筛选要处理的内容</div>
+          <p class="section-desc">只把这里保留的文本发送给 AI。可以从 Word 提取，也可以直接粘贴。</p>
+          <div class="button-group">
+            <button class="btn primary" id="extractWordTextBtn">提取 Word 内容</button>
+            <button class="btn ghost" data-word-filter="restore">恢复原文</button>
+            <button class="btn ghost" data-word-filter="removeReminders">删除工作提醒</button>
+            <button class="btn ghost" data-word-filter="removeMaterials">删除发放材料</button>
+            <button class="btn secondary" data-word-filter="student">仅学生事项</button>
+            <button class="btn secondary" data-word-filter="counselor">仅辅导员待办</button>
+            <button class="btn secondary" data-word-filter="application">仅报名/提交</button>
+            <button class="btn secondary" data-word-filter="employment">仅就业相关</button>
+            <button class="btn secondary" data-word-filter="scholarship">仅奖助相关</button>
+          </div>
+          <div class="field-block">
+            <textarea id="wordContentEditor" placeholder="请先提取 Word 内容，也可以直接复制粘贴需要生成备忘的内容到这里。"></textarea>
+          </div>
+          <div class="status-stack">
+            <span id="wordTextStatus" class="muted">可从 Word 提取，也可直接粘贴内容后生成。</span>
+            <span id="wordContentStats" class="muted">当前约 0 字</span>
+          </div>
+        </div>
+        <div class="sub-card">
+          <div class="section-title">2. 根据筛选内容生成</div>
+          <p class="section-desc">生成前确认左侧内容已经删掉无关部分，尤其是很长的 Word 原文。</p>
+          <button class="btn primary" id="generateFromFilteredTextBtn">根据筛选内容生成备忘</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="tableWorkflow" class="tab-panel">
+    <section class="card">
+      <div class="section-title">1. 解析 Word 为事项表格</div>
+      <p class="section-desc">适用于 Word 能被稳定解析为事项条目的情况。解析后可勾选、排序、导出 Excel。</p>
+      <div class="button-group">
+        <button class="btn primary" id="parseBtn" disabled>解析预览</button>
+        <button class="btn secondary" id="exportBtn" disabled>导出 Excel</button>
+        <button class="btn ghost" id="clearSelectBtn" aria-label="取消全选（当前排序）" title="取消全选（当前排序）">取消全选</button>
+      </div>
+      <div class="radio-group">
+        <label>
+          <input type="radio" name="sortType" value="original" checked />
+          按原文档顺序排序
+        </label>
+        <label>
+          <input type="radio" name="sortType" value="time" />
+          按时间顺序排序
+        </label>
+        <label>
+          <input type="radio" name="sortType" value="custom" />
+          自定义排序
+        </label>
+      </div>
+      <div class="row">
+        <div><b>排序方式：</b><span id="sortIndicator" class="muted">原文档顺序</span></div>
+        <div id="dragHint" class="muted" style="display:none">自定义排序：拖拽左侧把手调整顺序；移动端长按把手拖动。</div>
+      </div>
+      <div id="tableParseStatus" class="muted"></div>
+      <div id="tableWrap"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-title">2. 根据勾选事项生成备忘</div>
+      <p class="section-desc">勾选表格中的事项后，先提取内容预览，再生成到页面底部统一结果区。</p>
+      <div class="button-group">
+        <button class="btn secondary" id="collectBtn">提取内容</button>
+        <button class="btn primary" id="generateNoticeBtn" onclick="onGenerateNoticeClick()">生成通知</button>
+      </div>
+      <div id="selectedOutput" class="output-box"></div>
+    </section>
+  </div>
+
+  <section class="card result-card">
+    <div class="section-title">生成结果</div>
+    <p class="section-desc">两个工作流都会输出到这里。</p>
+    <div class="result-actions">
+      <button class="btn secondary" id="copyResultTextBtn">复制文本</button>
+      <button class="btn secondary" id="copyNoticeBtn" disabled aria-label="复制表格" title="复制表格">复制表格</button>
+    </div>
+    <div id="copyStatus" class="muted"></div>
+    <div id="finalNoticeOutput" class="output-box"></div>
+  </section>
+
+  <!-- 依赖：mammoth 解析 .docx；ExcelJS 生成 .xlsx；SortableJS 支持拖拽排序 -->
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <!-- 新增：前端配置（包含 API 信息） -->
+  <!-- 解析 DOCX 表格需要：JSZip 用于读取 document.xml -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="./js/config.js"></script>
+  <script src="./js/functions.js"></script>
+
+</body>
+</html>
