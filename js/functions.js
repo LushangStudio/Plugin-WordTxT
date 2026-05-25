@@ -599,6 +599,7 @@ async function parseDocx(file){
         return typeof pos === 'number' && typeof t.pos === 'number' && t.pos >= pos && t.pos < nextPos;
       });
       const cleanedText = stripDocxTableTokens(rawText, itemTables);
+      const workSummary = extractWorkSummary(cleanedText);
 
       let rawPos = typeof pos === 'number' ? pos : -1;
 
@@ -629,6 +630,7 @@ async function parseDocx(file){
         "星期几": week,
         "联系人": contactInfo.name,
         "联系电话": contactInfo.phone,
+        "工作概述": workSummary,
         "提取的内容": cleanedText,
         "提取的内容_html": htmlContent,
         "备注": "",
@@ -795,6 +797,19 @@ function stripDocxTableTokens(text, tables){
     if (table && table.token) out = out.split(table.token).join('');
   }
   return out.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function extractWorkSummary(text){
+  const s = String(text || '')
+    .replace(/<!--DOCX_TABLE_\d+-->/g, '')
+    .replace(/^\s*(?:（\s*\d+\s*）|\(\s*\d+\s*\)|\d+[、\.．\)）])\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return '';
+  const m = s.match(/^[\s\S]*?[。！？!?\.](?=\s|$|[\u4E00-\u9FFF])/);
+  if (m && m[0]) return m[0].trim();
+  const firstLine = s.split(/\n/).map(line => line.trim()).find(Boolean) || s;
+  return firstLine.length > 80 ? `${firstLine.slice(0, 80)}...` : firstLine;
 }
 
 function findFirstSectionHeadingOffset(text, keywords){
@@ -1172,7 +1187,7 @@ function renderTable(rows){
   const showDrag = sortType === 'custom';
   const selectionSet = selectionState[sortType] || new Set();
   // 展示用表头（含选择列）；导出仍使用固定列集
-  const headersDisplay = showDrag ? ["拖拽","选择","编号","时间","星期几","联系人","联系电话","提取的内容","备注"] : ["选择","编号","时间","星期几","联系人","联系电话","提取的内容","备注"];
+  const headersDisplay = showDrag ? ["拖拽","选择","编号","时间","星期几","联系人","联系电话","工作概述","提取的内容","备注"] : ["选择","编号","时间","星期几","联系人","联系电话","工作概述","提取的内容","备注"];
   const theadHtml = ['<thead><tr>', ...headersDisplay.map(h=>`<th>${h}</th>`), '</tr></thead>'].join('');
   const colSpan = headersDisplay.length;
   const tbodyRows = rows.map((r, i) => {
@@ -1190,6 +1205,7 @@ function renderTable(rows){
         <td>${escapeHtml(r["星期几"])}</td>
         <td>${escapeHtml(r["联系人"])}</td>
         <td>${escapeHtml(r["联系电话"])}</td>
+        <td>${escapeHtml(r["工作概述"])}</td>
         <td>${r["提取的内容_html"]}</td>
         <td>${escapeHtml(r["备注"])}</td>
       </tr>`
@@ -1330,11 +1346,11 @@ async function exportExcel(rows, filename){
       return cleanRow;
     });
 
-    const headers = ["编号","时间","星期几","联系人","联系电话","提取的内容","备注"];
+    const headers = ["编号","时间","星期几","联系人","联系电话","工作概述","提取的内容","备注"];
 
     // 列宽自适应（设定每列最小/最大宽度）
-    const minMap = { "编号": 6, "时间": 14, "星期几": 8, "联系人": 10, "联系电话": 14, "提取的内容": 40, "备注": 12 };
-    const maxMap = { "编号": 10, "时间": 24, "星期几": 12, "联系人": 18, "联系电话": 22, "提取的内容": 80, "备注": 20 };
+    const minMap = { "编号": 6, "时间": 14, "星期几": 8, "联系人": 10, "联系电话": 14, "工作概述": 24, "提取的内容": 40, "备注": 12 };
+    const maxMap = { "编号": 10, "时间": 24, "星期几": 12, "联系人": 18, "联系电话": 22, "工作概述": 42, "提取的内容": 80, "备注": 20 };
     autoFitColumns(worksheet, headers, exportData, minMap, maxMap);
 
     // 头部样式
