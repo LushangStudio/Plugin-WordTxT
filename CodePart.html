@@ -470,6 +470,18 @@
   .drag-chosen {
     background: rgba(79, 70, 229, 0.05);
   }
+
+  #tableWrap tr.ai-student-row td {
+    background: #ECFDF5;
+  }
+
+  #tableWrap tr.ai-student-row:hover td {
+    background: #DDF8EC;
+  }
+
+  #tableWrap tr.ai-student-row td:first-child {
+    border-left: 3px solid var(--success-color);
+  }
   
   /* 分类标题行样式（跨列显示，显著区分） */
   .category-title-row td.category-cell {
@@ -699,6 +711,7 @@
       <p class="section-desc">适用于 Word 能被稳定解析为事项条目的情况。解析后可勾选、排序、导出 Excel。</p>
       <div class="button-group">
         <button class="btn primary" id="parseBtn" disabled>解析预览</button>
+        <button class="btn secondary" id="filterTableStudentBtn" disabled>仅学生事项</button>
         <button class="btn secondary" id="exportBtn" disabled>导出 Excel</button>
         <button class="btn ghost" id="clearSelectBtn" aria-label="取消全选（当前排序）" title="取消全选（当前排序）">取消全选</button>
       </div>

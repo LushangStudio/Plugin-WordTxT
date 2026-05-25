@@ -3,14 +3,18 @@
 // 如果不希望暴露密钥，可改为在运行时提示对方输入，或使用后端代理(部署服务器)。
 
 window.APP_CONFIG = {
-  // OpenAI 兼容接口的基础地址（与 Python 里配置保持一致）
-  baseUrl: "https://ai.nengyongai.cn/v1",
-  // 模型名称（与后端一致即可）
-  model: "gpt-4o",
-  // 仅学生事项筛选模型：用于判断每个条目是否应保留为学生备忘
-  studentFilterModel: "gpt-5.4-mini",
-  // API Key（示例：来自现有 Python 文件）；实际使用时请替换为您自己的
-  apiKey: "sk-DZoxaZNxtiSxHYu5Gbx7uHAK351yRTyADXrBeSKX6ihw1qey",
+  // DeepSeek OpenAI 兼容接口的基础地址
+  baseUrl: "https://api.deepseek.com",
+  // 默认模型：用于未显式指定任务模型的调用
+  model: "deepseek-v4-pro",
+  // 正式备忘生成/补漏：质量优先，使用 Pro
+  generationModel: "deepseek-v4-pro",
+  // 表格选择后生成学生通知：保留表格占位符与结构，使用 Pro
+  tableNoticeModel: "deepseek-v4-pro",
+  // 学生事项 AI 筛选：结构化 JSON 判断，速度和成本优先，使用 Flash
+  studentFilterModel: "deepseek-v4-flash",
+  // API Key：仅用于本地可信环境；公开分发前请改为后端代理或运行时输入
+  apiKey: "sk-34fd98a2910f4159ad2e92b60b9445e1",
   // 可选：请求温度
   temperature: 0,
 };

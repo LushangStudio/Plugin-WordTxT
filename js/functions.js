@@ -5,6 +5,7 @@ const statusEl = $('#status');
 const tableWrap = $('#tableWrap');
 const fileInput = $('#fileInput');
 const parseBtn = $('#parseBtn');
+const filterTableStudentBtn = $('#filterTableStudentBtn');
 const exportBtn = $('#exportBtn');
 const libraryStatus = $('#libraryStatus');
 // 新增：挑选与通知生成相关元素
@@ -103,6 +104,10 @@ function isApiConfigured(){
     generateNoticeBtn.disabled = !ok;
     generateNoticeBtn.title = ok ? '直接在本地网页调用转换服务' : '请配置 js/config.js 中的 API 信息后使用';
   }
+  if (filterTableStudentBtn){
+    filterTableStudentBtn.disabled = true;
+    filterTableStudentBtn.title = ok ? '解析后可用 AI 自动勾选学生事项' : '请配置 js/config.js 中的 API 信息后使用';
+  }
 })();
 
 // 文件名生成
@@ -132,6 +137,7 @@ let originalWordText = '';
 let selectionState = { original: new Set(), time: new Set(), custom: new Set() };
 let lastSortType = null;
 let selectionHandlerBound = false;
+let aiStudentSuggestedUids = new Set();
 // 拖拽开始前的选择状态快照（仅用于自定义排序）
 let dragSelectionSnapshot = null;
 // 记录上一次渲染的行UID集合（按排序方式），用于识别真正“新增”的行
@@ -1196,8 +1202,9 @@ function renderTable(rows){
       return `<tr class="category-title-row"><td class="category-cell" colspan="${colSpan}">${escapeHtml(title)}</td></tr>`;
     }
     const checkedAttr = selectionSet.has(r.uid) ? ' checked' : '';
+    const rowClass = aiStudentSuggestedUids.has(r.uid) ? ' class="ai-student-row"' : '';
     return (
-      `<tr data-uid="${r.uid}">
+      `<tr data-uid="${r.uid}"${rowClass}>
         ${showDrag ? `<td class="drag-cell"><span class="drag-handle" title="拖拽排序">≡</span></td>` : ''}
         <td><input type="checkbox" class="row-select" data-row-index="${i}" data-uid="${r.uid}"${checkedAttr} /></td>
         <td>${escapeHtml(r["编号"])}</td>
@@ -1565,8 +1572,13 @@ function initOrDestroyDrag(){
 fileInput.addEventListener('change', ()=>{
   parseBtn.disabled = !fileInput.files.length; // 修复：选择文件后应可解析
   exportBtn.disabled = true;
+  if (filterTableStudentBtn) filterTableStudentBtn.disabled = true;
   tableWrap.innerHTML = '';
   originalWordText = '';
+  aiStudentSuggestedUids = new Set();
+  selectionState = { original: new Set(), time: new Set(), custom: new Set() };
+  lastRenderedUids = { original: new Set(), time: new Set(), custom: new Set() };
+  lastSortType = null;
   if (currentDocNameEl) {
     const f = fileInput.files && fileInput.files[0];
     currentDocNameEl.textContent = f ? `当前文档：${f.name}` : '当前文档：未选择';
@@ -1606,10 +1618,12 @@ parseBtn.addEventListener('click', async ()=>{
     customOrder = loadCustomOrder(originalRecords.map(r=>r.uid));
     refreshTable();
     exportBtn.disabled = false;
+    if (filterTableStudentBtn) filterTableStudentBtn.disabled = !isApiConfigured() || !originalRecords.length;
   }catch(err){
     console.error(err);
     statusEl.textContent = '解析失败：' + (err?.message || err);
     exportBtn.disabled = true;
+    if (filterTableStudentBtn) filterTableStudentBtn.disabled = true;
   }
 });
 
@@ -1622,6 +1636,8 @@ exportBtn.addEventListener('click', ()=>{
   const name = inputVal || makeAutoFilename();
   exportExcel(records, name);
 });
+
+filterTableStudentBtn && filterTableStudentBtn.addEventListener('click', onFilterTableStudentClick);
 
 document.querySelectorAll('input[name="sortType"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -1956,8 +1972,25 @@ function getFilterKeywords(filterType){
 }
 
 function getStudentFilterModel(){
+  return getConfiguredModel('studentFilter', 'deepseek-v4-flash');
+}
+
+function getGenerationModel(){
+  return getConfiguredModel('generation', 'deepseek-v4-pro');
+}
+
+function getTableNoticeModel(){
+  return getConfiguredModel('tableNotice', 'deepseek-v4-pro');
+}
+
+function getConfiguredModel(task, fallback){
   const cfg = window.APP_CONFIG || {};
-  return String(cfg.studentFilterModel || 'gpt-5.4-mini').trim();
+  const taskModels = {
+    studentFilter: cfg.studentFilterModel,
+    generation: cfg.generationModel,
+    tableNotice: cfg.tableNoticeModel
+  };
+  return String(taskModels[task] || cfg.model || fallback || '').trim();
 }
 
 function setWordFilterButtonsDisabled(disabled, activeType){
@@ -1994,23 +2027,33 @@ function splitWordTextBlocks(text){
   return blocks.length ? blocks : (String(text || '').trim() ? [String(text).trim()] : []);
 }
 
-function chunkStudentFilterBlocks(blocks, maxChars = 12000){
+function makeStudentFilterItems(blocks){
+  return (blocks || []).map((text, index) => ({
+    id: index + 1,
+    text
+  }));
+}
+
+function chunkStudentFilterItems(items, maxChars = 12000){
   const chunks = [];
   let current = [];
   let size = 0;
-  blocks.forEach((text, index) => {
-    const item = { id: index + 1, text };
-    const itemSize = String(text || '').length + 80;
+  (items || []).forEach(item => {
+    const itemSize = String(item?.text || '').length + 80;
     if (current.length && size + itemSize > maxChars) {
       chunks.push(current);
       current = [];
       size = 0;
     }
-    current.push(item);
+    current.push({ id: item.id, text: item.text });
     size += itemSize;
   });
   if (current.length) chunks.push(current);
   return chunks;
+}
+
+function chunkStudentFilterBlocks(blocks, maxChars = 12000){
+  return chunkStudentFilterItems(makeStudentFilterItems(blocks), maxChars);
 }
 
 function buildStudentFilterPrompt(items){
@@ -2072,14 +2115,17 @@ function parseStudentFilterDecisions(content){
   return decisions;
 }
 
-async function filterStudentBlocksWithAi(blocks){
-  const chunks = chunkStudentFilterBlocks(blocks);
+async function decideStudentItemsWithAi(items, options = {}){
+  const chunks = chunkStudentFilterItems(items);
   const finalDecisions = new Map();
   const model = getStudentFilterModel();
+  const setProgress = typeof options.onProgress === 'function' ? options.onProgress : setWordTextStatus;
+  const label = options.label || 'AI 正在判断学生事项';
   for (let i = 0; i < chunks.length; i++) {
-    setWordTextStatus(`AI 正在判断学生事项（${i + 1}/${chunks.length} 批）...`);
+    setProgress(`${label}（${i + 1}/${chunks.length} 批）...`);
     const result = await callChatCompletion(buildStudentFilterPrompt(chunks[i]), {
       model,
+      task: 'studentFilter',
       temperature: 0,
       timeout: 120000
     });
@@ -2091,7 +2137,94 @@ async function filterStudentBlocksWithAi(blocks){
       finalDecisions.set(item.id, decisions.get(item.id));
     }
   }
+  return finalDecisions;
+}
+
+async function filterStudentBlocksWithAi(blocks){
+  const items = makeStudentFilterItems(blocks);
+  const finalDecisions = await decideStudentItemsWithAi(items);
   return blocks.filter((_, index) => finalDecisions.get(index + 1));
+}
+
+function setTableFilterStatus(message, type){
+  const el = document.getElementById('tableParseStatus');
+  if (!el) return;
+  el.textContent = message || '';
+  el.className = type ? `muted ${type}` : 'muted';
+}
+
+function getRecordTextForStudentFilter(record){
+  const direct = String(record?.['提取的内容'] || '').trim();
+  if (direct) return direct;
+  const html = String(record?.['提取的内容_html'] || '').trim();
+  if (!html) return String(record?.['工作概述'] || '').trim();
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return (div.innerText || div.textContent || '').trim();
+}
+
+function setTableStudentFilterSelections(keptUids){
+  const next = new Set(keptUids || []);
+  aiStudentSuggestedUids = new Set(next);
+  ['original', 'time', 'custom'].forEach(type => {
+    selectionState[type] = new Set(next);
+  });
+}
+
+async function onFilterTableStudentClick(){
+  if (!records || records.length === 0) {
+    alert('请先解析预览 Word 文档');
+    setTableFilterStatus('请先解析预览 Word 文档。', 'error');
+    return;
+  }
+  if (!isApiConfigured()) {
+    alert('学生事项 AI 筛选需要先配置 js/config.js 中的 baseUrl、apiKey、model。');
+    setTableFilterStatus('学生事项 AI 筛选需要先配置转换服务。', 'error');
+    return;
+  }
+
+  const candidates = records
+    .filter(row => row && !row.isCategoryRow)
+    .map((row, index) => ({
+      id: index + 1,
+      uid: row.uid,
+      text: getRecordTextForStudentFilter(row)
+    }))
+    .filter(item => item.uid && item.text);
+
+  if (!candidates.length) {
+    setTableFilterStatus('没有可供 AI 筛选的事项条目。', 'error');
+    return;
+  }
+
+  const oldText = filterTableStudentBtn ? filterTableStudentBtn.textContent : '';
+  try {
+    if (filterTableStudentBtn) {
+      filterTableStudentBtn.disabled = true;
+      filterTableStudentBtn.textContent = '筛选中...';
+    }
+    setTableFilterStatus('AI 正在筛选学生事项...');
+    const decisions = await decideStudentItemsWithAi(candidates, {
+      label: 'AI 正在筛选表格学生事项',
+      onProgress: msg => setTableFilterStatus(msg)
+    });
+    const keptUids = candidates
+      .filter(item => decisions.get(item.id))
+      .map(item => item.uid);
+    setTableStudentFilterSelections(keptUids);
+    refreshTable();
+    setTableFilterStatus(`AI 已筛选学生事项：${candidates.length} 条中推荐 ${keptUids.length} 条，已自动勾选并高亮。`, keptUids.length ? 'success' : 'error');
+  } catch (e) {
+    console.error('表格学生事项 AI 筛选失败:', e);
+    const msg = e?.message || e;
+    alert('表格学生事项 AI 筛选失败：' + msg);
+    setTableFilterStatus('表格学生事项 AI 筛选失败：' + msg, 'error');
+  } finally {
+    if (filterTableStudentBtn) {
+      filterTableStudentBtn.disabled = !records || records.length === 0 || !isApiConfigured();
+      filterTableStudentBtn.textContent = oldText || '仅学生事项';
+    }
+  }
 }
 
 function removeSectionByHeading(text, startTitle, endTitle){
@@ -2248,7 +2381,7 @@ async function callChatCompletion(prompt, options){
   const cfg = window.APP_CONFIG || {};
   const baseUrl = String(options?.baseUrl || cfg.baseUrl || '').replace(/\/$/, '');
   const apiKey = String(options?.apiKey || cfg.apiKey || '');
-  const model = String(options?.model || cfg.model || '');
+  const model = String(options?.model || getConfiguredModel(options?.task || 'generation') || cfg.model || '');
   const temperature = typeof options?.temperature === 'number'
     ? options.temperature
     : (typeof cfg.temperature === 'number' ? cfg.temperature : 0.5);
@@ -2324,7 +2457,7 @@ async function generateFilteredNoticeWithCoverage({ filteredText, userPrompt, he
     itemCount: items.length
   };
 
-  let result = await callChatCompletion(buildFilteredGenerationPrompt(baseArgs));
+  let result = await callChatCompletion(buildFilteredGenerationPrompt(baseArgs), { task: 'generation' });
   let missingIds = getMissingGeneratedItemIds(result, items);
 
   if (missingIds.length) {
@@ -2332,7 +2465,7 @@ async function generateFilteredNoticeWithCoverage({ filteredText, userPrompt, he
     result = await callChatCompletion(buildFilteredGenerationPrompt({
       ...baseArgs,
       retryMissingIds: missingIds
-    }));
+    }), { task: 'generation' });
     missingIds = getMissingGeneratedItemIds(result, items);
   }
 
@@ -2343,7 +2476,7 @@ async function generateFilteredNoticeWithCoverage({ filteredText, userPrompt, he
       missingItems,
       userPrompt,
       contactMode
-    }));
+    }), { task: 'generation' });
     result = `${result}\n\n${supplement}`;
   }
 
@@ -2476,7 +2609,7 @@ async function studentNoticeGenerator(currentText, tableMap){
   const cfg = window.APP_CONFIG || {};
   const baseUrl = String(cfg.baseUrl || '').replace(/\/$/, '');
   const apiKey = String(cfg.apiKey || '');
-  const model = String(cfg.model || '');
+  const model = getTableNoticeModel();
   const temperature = typeof cfg.temperature === 'number' ? cfg.temperature : 0.5;
   if (!baseUrl || !apiKey || !model){
     alert('转换服务未配置：请在 js/config.js 中填写 baseUrl、apiKey、model');
