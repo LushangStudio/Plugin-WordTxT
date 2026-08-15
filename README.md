@@ -1,14 +1,15 @@
 # 学工备忘整理工具
 
-项目已由纯前端页面重构为前后端分离应用：前端使用 Vue 3、TypeScript 和 Vite，后端使用 FastAPI 和 Python。Word 解析、AI 调用、通知生成和 Excel 导出都由后端负责，浏览器不再保存或直接发送 API 密钥。
+项目已由纯前端页面重构为前后端分离应用：前端使用 Vue 3、TypeScript、Vite 和 Tailwind CSS，后端使用 FastAPI 和 Python。Word 解析、AI 调用、通知生成和 Excel 导出都由后端负责，浏览器不再保存或直接发送 API 密钥。
 
 ## 项目结构
 
 ```text
 Plugin/
-├─ frontend/                    # Vue 3 + TypeScript + Vite
+├─ frontend/                    # Vue 3 + TypeScript + Vite + Tailwind CSS
 │  ├─ src/
-│  │  ├─ components/           # 页面功能组件
+│  │  ├─ components/           # 页面功能组件与无障碍 UI 基础组件
+│  │  ├─ lib/                  # 样式类合并等通用基础能力
 │  │  ├─ services/api.ts       # 后端 API 客户端
 │  │  ├─ types/                # 前后端数据类型
 │  │  ├─ utils/                # 前端文本与交互工具
@@ -34,7 +35,7 @@ Plugin/
 ## 已实现功能
 
 - 上传并解析 `.docx`，支持普通段落、表格以及 WPS 内容控件中的文本。
-- 内容筛选工作流：提取全文、人工编辑、按关键词移除/恢复段落、AI 学生事项筛选。
+- 内容筛选工作流：提取全文、保留原表格、文本与格式双栏校对、按章节移除/恢复、AI 学生事项筛选。
 - 表格选择工作流：事项结构化、分类展示、勾选、拖拽和时间排序、AI 受众筛选。
 - 根据页眉、页脚、自定义要求和联系人保留策略生成通知。
 - 将选中事项导出为 `.xlsx`，并附带导出元数据。
@@ -143,7 +144,7 @@ npm run build
 | 方法 | 地址 | 作用 |
 |---|---|---|
 | GET | `/api/health` | 后端及 AI 配置状态 |
-| POST | `/api/documents/extract` | 提取 Word 全文 |
+| POST | `/api/documents/extract` | 提取 Word 全文及原表格映射 |
 | POST | `/api/documents/parse` | 将 Word 解析为结构化事项 |
 | POST | `/api/filters/classify` | AI 受众分类与筛选 |
 | POST | `/api/notices/generate` | AI 生成通知文本和安全 HTML |

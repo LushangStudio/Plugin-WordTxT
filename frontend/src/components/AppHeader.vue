@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { FileText, Sparkles, Upload, X } from '@lucide/vue'
+
+import StatusBadge from './ui/StatusBadge.vue'
+import UiButton from './ui/UiButton.vue'
+
 defineProps<{
   file: File | null
   backendOnline: boolean
@@ -12,36 +17,49 @@ const emit = defineEmits<{
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
   emit('fileChange', input.files?.[0] || null)
+  input.value = ''
 }
 </script>
 
 <template>
-  <section class="card hero-card">
-    <div>
-      <p class="eyebrow">STUDENT AFFAIRS MEMO</p>
-      <h1>学工备忘工作台</h1>
-      <p class="hero-copy">上传 Word，复核筛选结果，再生成可直接发送的通知。</p>
-    </div>
-    <div class="steps" aria-label="使用步骤">
-      <div><span>1</span><strong>上传 DOCX</strong></div>
-      <div><span>2</span><strong>识别与筛选</strong></div>
-      <div><span>3</span><strong>生成通知</strong></div>
-    </div>
-    <div class="upload-row">
-      <label class="file-picker">
-        <span>{{ file ? '更换 Word' : '选择 Word' }}</span>
-        <input type="file" accept=".docx" @change="onFileChange" />
-      </label>
-      <div class="file-name">{{ file?.name || '尚未选择文档' }}</div>
-      <div class="service-badges">
-        <span :class="['badge', backendOnline ? 'success' : 'error']">
-          {{ backendOnline ? '后端在线' : '后端离线' }}
-        </span>
-        <span :class="['badge', aiConfigured ? 'success' : 'warning']">
-          {{ aiConfigured ? 'AI 已配置' : 'AI 未配置' }}
-        </span>
+  <header class="border-b border-slate-200/90 bg-white/95 backdrop-blur">
+    <div class="mx-auto flex w-full max-w-[1800px] flex-col gap-4 px-4 py-4 sm:px-6 xl:flex-row xl:items-center xl:justify-between xl:px-8">
+      <div class="flex min-w-0 items-center gap-3">
+        <div class="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-700 text-white shadow-sm shadow-blue-900/20">
+          <FileText :size="22" :stroke-width="1.9" aria-hidden="true" />
+        </div>
+        <div class="min-w-0">
+          <p class="m-0 text-[11px] font-bold tracking-[0.18em] text-blue-700">STUDENT AFFAIRS DESK</p>
+          <h1 class="m-0 truncate text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">学工备忘工作台</h1>
+        </div>
+      </div>
+
+      <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div class="flex flex-wrap items-center gap-2" aria-label="服务状态">
+          <StatusBadge :tone="backendOnline ? 'success' : 'danger'">
+            {{ backendOnline ? '后端在线' : '后端离线' }}
+          </StatusBadge>
+          <StatusBadge :tone="aiConfigured ? 'info' : 'warning'">
+            <Sparkles :size="12" aria-hidden="true" />
+            {{ aiConfigured ? 'AI 已就绪' : 'AI 未配置' }}
+          </StatusBadge>
+        </div>
+
+        <div class="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
+          <div v-if="file" class="flex min-w-0 items-center gap-2 px-2 text-sm text-slate-700">
+            <FileText :size="16" class="shrink-0 text-blue-700" aria-hidden="true" />
+            <span class="max-w-52 truncate" :title="file.name">{{ file.name }}</span>
+            <UiButton variant="ghost" size="icon" class="size-7 rounded-lg" aria-label="移除当前文档" @click="emit('fileChange', null)">
+              <X :size="15" aria-hidden="true" />
+            </UiButton>
+          </div>
+          <label class="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-2">
+            <Upload :size="16" aria-hidden="true" />
+            {{ file ? '更换文档' : '上传 Word' }}
+            <input class="sr-only" type="file" accept=".docx" @change="onFileChange" />
+          </label>
+        </div>
       </div>
     </div>
-  </section>
+  </header>
 </template>
-
