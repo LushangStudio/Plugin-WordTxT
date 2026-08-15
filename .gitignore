@@ -1,0 +1,23 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Vue / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# Python / FastAPI
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
