@@ -1,0 +1,6 @@
+{
+  "envId": "serendipity-d0gqi5z1h93fad04c",
+  "cloudrun": {
+    "name": "memo-api"
+  }
+}

@@ -139,6 +139,41 @@ npm run type-check
 npm run build
 ```
 
+## CloudBase 部署
+
+当前 `CloudBase` 分支已部署到环境 `serendipity-d0gqi5z1h93fad04c`。
+
+### 线上地址
+
+- Web 前端：<https://memo-web-serendipity-d0gqi5z1h93fad04c.webapps.tcloudbase.com/>
+- FastAPI 后端：<https://memo-api-257234-5-1384202894.sh.run.tcloudbase.com/>
+- API 文档：<https://memo-api-257234-5-1384202894.sh.run.tcloudbase.com/docs>
+- 健康检查：<https://memo-api-257234-5-1384202894.sh.run.tcloudbase.com/api/health>
+
+CloudBase 资源：
+
+- CloudBase App：`memo-web`
+- CloudBase Run：`memo-api`
+- 运行规格：0.5 CPU、1 GB 内存、最小 1 实例、最大 3 实例
+- 后端入口：公网 HTTPS，容器监听 `0.0.0.0:8080`
+
+### 生产环境变量
+
+后端变量在 CloudBase 控制台的 `memo-api` 服务设置中维护。至少需要配置：
+
+- `APP_ENV=production`
+- `PORT=8080`
+- `FRONTEND_ORIGINS=https://memo-web-serendipity-d0gqi5z1h93fad04c.webapps.tcloudbase.com`
+- `DEEPSEEK_API_KEY=<在 CloudBase 控制台中安全填写>`
+
+前端在构建时使用：
+
+```dotenv
+VITE_API_BASE_URL=https://memo-api-257234-5-1384202894.sh.run.tcloudbase.com/api
+```
+
+`VITE_*` 会写入浏览器产物，禁止存放任何密钥。更新前端时应先使用生产 API 地址重新构建，再以同一个 CloudBase App 服务名 `memo-web` 发布新版本。
+
 ## API 概览
 
 | 方法 | 地址 | 作用 |
