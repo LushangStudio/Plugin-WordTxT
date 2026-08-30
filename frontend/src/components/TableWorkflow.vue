@@ -152,7 +152,7 @@ async function generate() {
     <button class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-6" type="button" :aria-expanded="open" aria-controls="table-workflow" @click="open = !open">
       <span class="flex min-w-0 items-center gap-3">
         <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-700 text-white"><FileSpreadsheet :size="19" aria-hidden="true" /></span>
-        <span class="min-w-0"><strong class="block text-base font-bold text-slate-950">表格选择生成</strong><small class="mt-0.5 block text-xs leading-5 font-normal text-slate-500 sm:text-sm">逐条复核、排序、AI 辅助选择并导出 Excel</small></span>
+        <strong class="block min-w-0 truncate text-base leading-6 font-bold text-slate-950">表格选择生成</strong>
       </span>
       <ChevronDown :size="18" class="shrink-0 text-slate-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true" />
     </button>

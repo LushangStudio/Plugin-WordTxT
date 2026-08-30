@@ -69,7 +69,7 @@ onMounted(loadTemplate)
     <button class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-6" type="button" :aria-expanded="open" aria-controls="generation-settings" @click="open = !open">
       <span class="flex min-w-0 items-center gap-3">
         <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Settings2 :size="19" aria-hidden="true" /></span>
-        <span class="min-w-0"><strong class="block text-base font-bold text-slate-950">通用生成设置</strong><small class="mt-0.5 block text-xs leading-5 font-normal text-slate-500 sm:text-sm">每次只编辑一个区域，切换时内容会自动保留</small></span>
+        <strong class="block min-w-0 truncate text-base leading-6 font-bold text-slate-950">通用生成设置</strong>
       </span>
       <span class="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
         {{ open ? '收起' : '展开' }}

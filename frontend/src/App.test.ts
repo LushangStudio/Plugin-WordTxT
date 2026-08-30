@@ -48,6 +48,26 @@ describe('App workspace', () => {
     wrapper.unmount()
   })
 
+  it('uses single-line accordion headers without secondary helper text', async () => {
+    stubBackendHealth(true)
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const settingsHeader = wrapper.get('button[aria-controls="generation-settings"]')
+    const tableHeader = wrapper.get('button[aria-controls="table-workflow"]')
+    expect(settingsHeader.text()).toContain('通用生成设置')
+    expect(tableHeader.text()).toContain('表格选择生成')
+    expect(settingsHeader.find('small').exists()).toBe(false)
+    expect(tableHeader.find('small').exists()).toBe(false)
+
+    await wrapper.get('nav[aria-label="提取方式"] button:first-child').trigger('click')
+    const contentHeader = wrapper.get('button[aria-controls="content-workflow"]')
+    expect(contentHeader.text()).toContain('内容筛选生成')
+    expect(contentHeader.find('small').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
   it('keeps extraction controls reachable below a viewport-limited desktop guide', async () => {
     stubBackendHealth(true)
     const wrapper = mount(App)
