@@ -135,6 +135,7 @@ cd C:\Users\21497\Desktop\Plug\Plugin\backend
 
 ```powershell
 cd C:\Users\21497\Desktop\Plug\Plugin\frontend
+npm test
 npm run type-check
 npm run build
 ```
