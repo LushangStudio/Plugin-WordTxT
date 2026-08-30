@@ -99,8 +99,8 @@ onMounted(async () => {
 
     <main class="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)_340px] xl:px-8">
       <aside class="self-start xl:sticky xl:top-5">
-        <section class="overflow-hidden rounded-2xl border border-blue-100 bg-white text-slate-900 shadow-sm">
-          <div class="border-b border-blue-100 bg-blue-50 px-5 py-4">
+        <section class="overflow-x-hidden rounded-2xl border border-blue-100 bg-white text-slate-900 shadow-sm xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
+          <div class="border-b border-blue-100 bg-blue-50 px-5 py-4 xl:sticky xl:top-0 xl:z-10">
             <p class="m-0 text-sm font-bold tracking-wide text-blue-900">插件使用说明</p>
           </div>
           <ol class="m-0 grid list-none divide-y divide-slate-100 p-2" aria-label="插件使用步骤">
@@ -124,7 +124,7 @@ onMounted(async () => {
           </ol>
         </section>
 
-        <nav class="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm xl:grid-cols-1" aria-label="提取方式">
+        <nav class="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm xl:grid-cols-1 xl:shrink-0" aria-label="提取方式">
           <button
             type="button"
             class="group flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"

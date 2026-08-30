@@ -48,6 +48,20 @@ describe('App workspace', () => {
     wrapper.unmount()
   })
 
+  it('keeps extraction controls reachable below a viewport-limited desktop guide', async () => {
+    stubBackendHealth(true)
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const guide = wrapper.get('main aside section')
+    const extractionNav = wrapper.get('main aside nav')
+    expect(guide.classes()).toContain('xl:max-h-[calc(100vh-13rem)]')
+    expect(guide.classes()).toContain('xl:overflow-y-auto')
+    expect(extractionNav.classes()).toContain('xl:shrink-0')
+
+    wrapper.unmount()
+  })
+
   it('presents the final five-step static usage guide in order', async () => {
     stubBackendHealth(true)
     const wrapper = mount(App)
