@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { FileText, Sparkles, Upload, X } from '@lucide/vue'
+import { FileText, Upload, X } from '@lucide/vue'
 
-import StatusBadge from './ui/StatusBadge.vue'
 import UiButton from './ui/UiButton.vue'
 
 defineProps<{
   file: File | null
-  backendOnline: boolean
-  aiConfigured: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,16 +32,6 @@ function onFileChange(event: Event) {
       </div>
 
       <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <div class="flex flex-wrap items-center gap-2" aria-label="服务状态">
-          <StatusBadge :tone="backendOnline ? 'success' : 'danger'">
-            {{ backendOnline ? '后端在线' : '后端离线' }}
-          </StatusBadge>
-          <StatusBadge :tone="aiConfigured ? 'info' : 'warning'">
-            <Sparkles :size="12" aria-hidden="true" />
-            {{ aiConfigured ? 'AI 已就绪' : 'AI 未配置' }}
-          </StatusBadge>
-        </div>
-
         <div class="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5">
           <div v-if="file" class="flex min-w-0 items-center gap-2 px-2 text-sm text-slate-700">
             <FileText :size="16" class="shrink-0 text-blue-700" aria-hidden="true" />

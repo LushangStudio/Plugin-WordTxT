@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Check, FileInput, FileText, ListFilter, Settings2, Table2 } from '@lucide/vue'
+import { Check, FileInput, FileText, ListFilter, Table2 } from '@lucide/vue'
 
 import AppHeader from './components/AppHeader.vue'
 import ContentWorkflow from './components/ContentWorkflow.vue'
@@ -12,7 +12,6 @@ import type { GeneratedResult, GenerationSettings } from './types'
 
 const file = ref<File | null>(null)
 const activeWorkflow = ref<'content' | 'table'>('content')
-const backendOnline = ref(false)
 const aiConfigured = ref(false)
 const result = ref<GeneratedResult | null>(null)
 const settings = reactive<GenerationSettings>({
@@ -41,23 +40,22 @@ function showResult(value: GeneratedResult) {
 onMounted(async () => {
   try {
     const health = await getHealth()
-    backendOnline.value = health.status === 'ok'
     aiConfigured.value = health.ai_configured
   } catch {
-    backendOnline.value = false
+    aiConfigured.value = false
   }
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-[#f4f7fb] text-slate-900">
-    <AppHeader :file="file" :backend-online="backendOnline" :ai-configured="aiConfigured" @file-change="setFile" />
+    <AppHeader :file="file" @file-change="setFile" />
 
     <main class="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[220px_minmax(0,1fr)_340px] xl:px-8">
       <aside class="self-start xl:sticky xl:top-5">
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-[#102447] text-white shadow-sm">
           <div class="border-b border-white/10 px-5 py-5">
-            <p class="m-0 text-[11px] font-bold tracking-[0.18em] text-cyan-300">办文轨道</p>
+            <p class="m-0 text-[11px] font-bold tracking-[0.18em] text-cyan-300">插件使用说明</p>
             <p class="mt-2 mb-0 text-sm leading-6 text-blue-100">从原始 Word 到可发送通知，当前进度会在这里同步。</p>
           </div>
           <ol class="m-0 grid list-none gap-0 p-3" aria-label="处理进度">
@@ -107,10 +105,6 @@ onMounted(async () => {
       </aside>
 
       <div class="min-w-0 space-y-5">
-        <div class="flex items-center gap-2 px-1 text-sm text-slate-500">
-          <Settings2 :size="16" aria-hidden="true" />
-          <span>先设置生成口径，再处理当前文档</span>
-        </div>
         <GenerationSettingsPanel :model-value="settings" @update:model-value="setSettings" />
         <ContentWorkflow
           v-if="activeWorkflow === 'content'"

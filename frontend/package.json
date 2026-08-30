@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "test": "vitest run",
     "type-check": "vue-tsc -b",
     "preview": "vite preview"
   },
@@ -20,9 +21,12 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
     "@vitejs/plugin-vue": "^6.0.0",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^26.1.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
+    "vitest": "^3.2.6",
     "vue-tsc": "^3.0.0"
   }
 }
