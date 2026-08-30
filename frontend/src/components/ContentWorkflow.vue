@@ -208,7 +208,7 @@ async function generate() {
         <span>{{ status }}</span><span class="shrink-0 font-semibold text-slate-600">当前约 {{ characterCount }} 字</span>
       </div>
       <UiButton variant="primary" size="lg" class="w-full" :disabled="loading || !aiConfigured" @click="generate">
-        <WandSparkles :size="18" aria-hidden="true" />{{ loading ? '处理中…' : '根据筛选内容生成备忘' }}
+        <WandSparkles :size="18" aria-hidden="true" />{{ loading ? '处理中…' : '根据筛选内容生成通知' }}
       </UiButton>
     </div>
   </section>
