@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 from urllib.parse import parse_qs, quote, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api.routes import auth as auth_routes
 from app.core.config import Settings
@@ -65,6 +67,35 @@ class FakeUISOAuthClient:
             email="user@example.edu.cn",
             department="Example Department",
         )
+
+
+class AccessLogScopeProbe:
+    """Observe the request scope at the point an outer ASGI server logs it."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+        self.query_strings: list[bytes] = []
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        async def send_wrapper(message: Message) -> None:
+            if scope["type"] == "http" and message["type"] == "http.response.start":
+                self.query_strings.append(scope["query_string"])
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
+
+def assert_query_hidden_from_access_log(
+    probe: AccessLogScopeProbe,
+    route_name: str,
+) -> None:
+    if probe.query_strings != [b""]:
+        raise AssertionError(f"{route_name} query reached the access-log scope")
 
 
 def make_client(
@@ -314,6 +345,44 @@ def test_matching_passive_logout_token_clears_current_session() -> None:
     assert response.status_code == 204
     assert response.content == b""
     assert client.get("/api/auth/me").json()["authenticated"] is False
+
+
+def test_sensitive_queries_are_hidden_from_access_logs_but_routes_receive_them() -> None:
+    settings = configured_settings()
+    fake = FakeUISOAuthClient()
+    application = create_app(settings)
+    application.dependency_overrides[auth_routes.get_uis_oauth_client] = lambda: fake
+    access_log_probe = AccessLogScopeProbe(application)
+    client = TestClient(access_log_probe, follow_redirects=False)
+
+    state = begin_login(client)
+    access_log_probe.query_strings.clear()
+    callback_code = "synthetic-callback-code"
+    callback = client.get(
+        "/api/auth/callback",
+        params={"code": callback_code, "state": state},
+    )
+
+    assert callback.status_code == 303
+    assert len(fake.exchanged_codes) == 1
+    assert hmac.compare_digest(fake.exchanged_codes[0], callback_code)
+    assert_query_hidden_from_access_log(access_log_probe, "OAuth callback")
+
+    access_log_probe.query_strings.clear()
+    passive_logout = client.get(
+        "/api/auth/sso-logout",
+        params={"token": "provider-access-token"},
+    )
+
+    assert passive_logout.status_code == 204
+    assert_query_hidden_from_access_log(access_log_probe, "passive logout")
+    assert client.get("/api/auth/me").json()["authenticated"] is False
+
+    access_log_probe.query_strings.clear()
+    health = client.get("/api/health", params={"verbose": "true"})
+
+    assert health.status_code == 200
+    assert access_log_probe.query_strings == [b"verbose=true"]
 
 
 def test_auth_misconfiguration_returns_503_and_business_routes_fail_closed() -> None:

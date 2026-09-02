@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
+from app.core.access_log import RedactSensitiveQueryMiddleware
 from app.core.config import Settings, get_settings
 
 
@@ -31,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             or actual_settings.app_env.lower() == "production"
         ),
     )
+    application.add_middleware(RedactSensitiveQueryMiddleware)
     if settings is not None:
         application.dependency_overrides[get_settings] = lambda: actual_settings
     application.include_router(api_router, prefix="/api")
