@@ -385,6 +385,40 @@ def test_sensitive_queries_are_hidden_from_access_logs_but_routes_receive_them()
     assert access_log_probe.query_strings == [b"verbose=true"]
 
 
+@pytest.mark.parametrize(
+    ("path", "params", "expected_query", "route_name"),
+    [
+        (
+            "/api/auth/callback/",
+            {"code": "synthetic-code", "state": "synthetic-state"},
+            {"code": ["synthetic-code"], "state": ["synthetic-state"]},
+            "trailing-slash OAuth callback",
+        ),
+        (
+            "/api/auth/sso-logout/",
+            {"token": "synthetic-token"},
+            {"token": ["synthetic-token"]},
+            "trailing-slash passive logout",
+        ),
+    ],
+)
+def test_trailing_slash_sensitive_queries_are_hidden_before_route_redirect(
+    path: str,
+    params: dict[str, str],
+    expected_query: dict[str, list[str]],
+    route_name: str,
+) -> None:
+    application = create_app(configured_settings())
+    access_log_probe = AccessLogScopeProbe(application)
+    client = TestClient(access_log_probe, follow_redirects=False)
+
+    response = client.get(path, params=params)
+
+    assert response.status_code == 307
+    assert parse_qs(urlparse(response.headers["location"]).query) == expected_query
+    assert_query_hidden_from_access_log(access_log_probe, route_name)
+
+
 def test_auth_misconfiguration_returns_503_and_business_routes_fail_closed() -> None:
     settings = Settings(
         _env_file=None,

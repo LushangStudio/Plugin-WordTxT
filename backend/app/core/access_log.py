@@ -23,9 +23,10 @@ class RedactSensitiveQueryMiddleware:
         receive: Receive,
         send: Send,
     ) -> None:
+        path = scope.get("path", "").rstrip("/")
         if (
             scope["type"] == "http"
-            and scope.get("path") in SENSITIVE_QUERY_PATHS
+            and path in SENSITIVE_QUERY_PATHS
             and scope.get("query_string")
         ):
             downstream_scope = dict(scope)
