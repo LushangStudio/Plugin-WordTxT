@@ -1,25 +1,76 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref, type Component } from 'vue'
+import { Columns2, FileInput, FileText, ListFilter, Settings2, Table2 } from '@lucide/vue'
 
 import AppHeader from './components/AppHeader.vue'
 import ContentWorkflow from './components/ContentWorkflow.vue'
 import GenerationSettingsPanel from './components/GenerationSettings.vue'
 import ResultPanel from './components/ResultPanel.vue'
 import TableWorkflow from './components/TableWorkflow.vue'
-import { getHealth } from './services/api'
-import type { GeneratedResult, GenerationSettings } from './types'
+import { getAuthLoginUrl, getAuthLogoutUrl, getCurrentUser, getHealth, setUnauthorizedHandler } from './services/api'
+import type { AuthUser, GeneratedResult, GenerationSettings } from './types'
 
 const file = ref<File | null>(null)
-const activeWorkflow = ref<'content' | 'table'>('content')
-const backendOnline = ref(false)
+const activeWorkflow = ref<'content' | 'table'>('table')
 const aiConfigured = ref(false)
 const result = ref<GeneratedResult | null>(null)
+const authStatus = ref<'loading' | 'authenticated' | 'anonymous' | 'error'>('loading')
+const currentUser = ref<AuthUser | null>(null)
+const authMessage = ref(readAuthCallbackMessage())
 const settings = reactive<GenerationSettings>({
   userPrompt: '',
   header: '本周学工备忘如下：',
   footer: '请同学们注意查收。',
   contactMode: 'keep',
 })
+
+interface UsageStep {
+  title: string
+  description: string
+  icon: Component
+  choices?: Array<{
+    label: string
+    description: string
+  }>
+}
+
+const usageSteps: UsageStep[] = [
+  {
+    title: '上传 Word 文档',
+    description: '点击页面顶端“上传 Word”，选择需要处理的学工备忘文件。',
+    icon: FileInput,
+  },
+  {
+    title: '设置生成要求',
+    description: '在“通用生成设置”中撰写提示词，并配置通知开头、结尾和联系人保留方式。',
+    icon: Settings2,
+  },
+  {
+    title: '选择提取方式',
+    description: '在页面左侧的卡片选择“提取为表格”或“提取为文本”。两者区别如下：',
+    icon: Columns2,
+    choices: [
+      {
+        label: '提取为表格（推荐）',
+        description: '按事项拆成简单直观的条目，适合大部分场景。',
+      },
+      {
+        label: '提取为文本',
+        description: '保留全文和原始表格，可人工逐字删改，适用于需要细节修改的场景。',
+      },
+    ],
+  },
+  {
+    title: '筛选与复核',
+    description: '根据需要选择内容，复核后进入通知生成环节。',
+    icon: ListFilter,
+  },
+  {
+    title: '生成通知文本',
+    description: '点击“根据筛选内容生成通知”按钮，即可使用前面配置的提示词生成不同的通知。',
+    icon: FileText,
+  },
+]
 
 function setFile(value: File | null) {
   file.value = value
@@ -32,44 +83,145 @@ function setSettings(value: GenerationSettings) {
 
 function showResult(value: GeneratedResult) {
   result.value = value
-  requestAnimationFrame(() => document.querySelector('.result-card')?.scrollIntoView({ behavior: 'smooth' }))
+  requestAnimationFrame(() => document.querySelector('#result-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+}
+
+function readAuthCallbackMessage(): string {
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('auth_error') !== 'undergraduate_not_allowed') return ''
+
+  url.searchParams.delete('auth_error')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  return '当前应用暂不面向本科生开放'
+}
+
+function showAnonymousGate(): void {
+  currentUser.value = null
+  authStatus.value = 'anonymous'
 }
 
 onMounted(async () => {
+  setUnauthorizedHandler(showAnonymousGate)
+
   try {
+    const session = await getCurrentUser()
+    if (!session.authenticated || session.user === null) {
+      showAnonymousGate()
+      return
+    }
+
+    currentUser.value = session.user
+    authStatus.value = 'authenticated'
     const health = await getHealth()
-    backendOnline.value = health.status === 'ok'
     aiConfigured.value = health.ai_configured
   } catch {
-    backendOnline.value = false
+    aiConfigured.value = false
+    if (authStatus.value === 'loading') authStatus.value = 'error'
   }
+
 })
+
+onUnmounted(() => setUnauthorizedHandler(null))
 </script>
 
 <template>
-  <main class="app-shell">
-    <AppHeader :file="file" :backend-online="backendOnline" :ai-configured="aiConfigured" @file-change="setFile" />
-    <GenerationSettingsPanel :model-value="settings" @update:model-value="setSettings" />
+  <div class="min-h-screen bg-[#f4f7fb] text-slate-900">
+    <section v-if="authStatus === 'loading'" class="mx-auto flex min-h-screen w-full max-w-[1800px] items-center px-4 sm:px-6 xl:px-8">
+      <p class="border-l-4 border-blue-700 bg-white px-5 py-4 text-sm font-semibold text-slate-700 shadow-sm">正在确认登录状态</p>
+    </section>
 
-    <nav class="workflow-tabs" aria-label="生成方式">
-      <button :class="{ active: activeWorkflow === 'content' }" type="button" @click="activeWorkflow = 'content'">内容筛选生成</button>
-      <button :class="{ active: activeWorkflow === 'table' }" type="button" @click="activeWorkflow = 'table'">表格选择生成</button>
-    </nav>
+    <section v-else-if="authStatus === 'anonymous' || authStatus === 'error'" class="mx-auto flex min-h-screen w-full max-w-[1800px] items-center px-4 sm:px-6 xl:px-8">
+      <div class="max-w-xl border-l-4 border-blue-700 bg-white px-6 py-6 shadow-sm">
+        <p class="m-0 text-[11px] font-bold tracking-[0.18em] text-blue-700">UIS ACCESS</p>
+        <h1 class="mt-2 mb-0 text-2xl font-bold tracking-tight text-slate-950">学工备忘工作台</h1>
+        <p class="mt-3 mb-0 text-sm leading-6 text-slate-600">
+          {{ authStatus === 'error' ? '暂时无法确认登录状态，请稍后重试。' : '请使用复旦大学统一身份认证访问本工作台。' }}
+        </p>
+        <p v-if="authMessage" class="mt-3 mb-0 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{{ authMessage }}</p>
+        <a v-if="authStatus === 'anonymous'" :href="getAuthLoginUrl()" class="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2">使用 UIS 登录</a>
+      </div>
+    </section>
 
-    <ContentWorkflow
-      v-if="activeWorkflow === 'content'"
-      :file="file"
-      :settings="settings"
-      :ai-configured="aiConfigured"
-      @result="showResult"
-    />
-    <TableWorkflow
-      v-else
-      :file="file"
-      :settings="settings"
-      :ai-configured="aiConfigured"
-      @result="showResult"
-    />
-    <ResultPanel :result="result" />
-  </main>
+    <template v-else-if="currentUser">
+      <AppHeader :file="file" :user="currentUser" :logout-url="getAuthLogoutUrl()" @file-change="setFile" />
+
+      <main class="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)_340px] xl:px-8">
+      <aside class="self-start xl:sticky xl:top-5">
+        <section class="overflow-x-hidden rounded-2xl border border-blue-100 bg-white text-slate-900 shadow-sm xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
+          <div class="border-b border-blue-100 bg-blue-50 px-5 py-4 xl:sticky xl:top-0 xl:z-10">
+            <p class="m-0 text-sm font-bold tracking-wide text-blue-900">插件使用说明</p>
+          </div>
+          <ol class="m-0 grid list-none divide-y divide-slate-100 p-2" aria-label="插件使用步骤">
+            <li v-for="(step, index) in usageSteps" :key="step.title" class="flex gap-3 px-2 py-3.5">
+              <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-blue-50 text-blue-700 ring-1 ring-blue-100">
+                <component :is="step.icon" :size="16" aria-hidden="true" />
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-[10px] font-bold tracking-wider text-blue-500">0{{ index + 1 }}</span>
+                  <h3 class="m-0 text-sm font-bold text-slate-900">{{ step.title }}</h3>
+                </div>
+                <p class="mt-1.5 mb-0 text-xs leading-5 text-slate-600">{{ step.description }}</p>
+                <div v-if="step.choices" class="mt-2 grid gap-2">
+                  <p v-for="choice in step.choices" :key="choice.label" class="m-0 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs leading-5 text-slate-600">
+                    <strong class="text-slate-800">{{ choice.label }}：</strong>{{ choice.description }}
+                  </p>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </section>
+
+        <nav class="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm xl:grid-cols-1 xl:shrink-0" aria-label="提取方式">
+          <button
+            type="button"
+            class="group flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            :class="activeWorkflow === 'content' ? 'bg-blue-50 text-blue-800' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+            :aria-current="activeWorkflow === 'content' ? 'page' : undefined"
+            @click="activeWorkflow = 'content'"
+          >
+            <span class="grid size-9 shrink-0 place-items-center rounded-lg" :class="activeWorkflow === 'content' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-500 group-hover:text-slate-800'">
+              <ListFilter :size="18" aria-hidden="true" />
+            </span>
+            <span class="min-w-0"><strong class="block truncate text-sm">提取为文本</strong></span>
+          </button>
+          <button
+            type="button"
+            class="group flex min-w-0 items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            :class="activeWorkflow === 'table' ? 'bg-blue-50 text-blue-800' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'"
+            :aria-current="activeWorkflow === 'table' ? 'page' : undefined"
+            @click="activeWorkflow = 'table'"
+          >
+            <span class="grid size-9 shrink-0 place-items-center rounded-lg" :class="activeWorkflow === 'table' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-500 group-hover:text-slate-800'">
+              <Table2 :size="18" aria-hidden="true" />
+            </span>
+            <span class="min-w-0"><strong class="block truncate text-sm">提取为表格</strong></span>
+          </button>
+        </nav>
+      </aside>
+
+      <div class="min-w-0 space-y-5">
+        <GenerationSettingsPanel :model-value="settings" @update:model-value="setSettings" />
+        <ContentWorkflow
+          v-if="activeWorkflow === 'content'"
+          :file="file"
+          :settings="settings"
+          :ai-configured="aiConfigured"
+          @result="showResult"
+        />
+        <TableWorkflow
+          v-else
+          :file="file"
+          :settings="settings"
+          :ai-configured="aiConfigured"
+          @result="showResult"
+        />
+      </div>
+
+      <aside id="result-panel" class="min-w-0 self-start scroll-mt-5 xl:sticky xl:top-5">
+        <ResultPanel :result="result" />
+      </aside>
+      </main>
+    </template>
+  </div>
 </template>

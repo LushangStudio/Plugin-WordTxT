@@ -9,17 +9,17 @@ from app.services.export_service import build_workbook
 from app.services.notice_service import _format_items
 
 
-def test_health(client):
-    response = client.get("/api/health")
+def test_health(authenticated_client):
+    response = authenticated_client.get("/api/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert "ai_configured" in response.json()
 
 
-def test_ai_filter_requires_backend_key(client):
+def test_ai_filter_requires_backend_key(authenticated_client):
     app.dependency_overrides[get_settings] = lambda: Settings(deepseek_api_key="")
     try:
-        response = client.post(
+        response = authenticated_client.post(
             "/api/filters/classify",
             json={
                 "filter_type": "student",
@@ -32,8 +32,8 @@ def test_ai_filter_requires_backend_key(client):
         app.dependency_overrides.pop(get_settings, None)
 
 
-def test_extract_document(client, sample_docx):
-    response = client.post(
+def test_extract_document(authenticated_client, sample_docx):
+    response = authenticated_client.post(
         "/api/documents/extract",
         files={"file": ("sample.docx", sample_docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
     )
@@ -65,8 +65,8 @@ def test_notice_items_restore_source_table_at_marker():
     assert "[[表格_1]]" not in formatted
 
 
-def test_parse_document_and_cut_sections(client, sample_docx):
-    response = client.post(
+def test_parse_document_and_cut_sections(authenticated_client, sample_docx):
+    response = authenticated_client.post(
         "/api/documents/parse",
         files={"file": ("sample.docx", sample_docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
         data={"start_number": "1"},
@@ -79,8 +79,8 @@ def test_parse_document_and_cut_sections(client, sample_docx):
     assert any(item["tables_html"] for item in data["items"])
 
 
-def test_parse_preserves_every_row_and_column(client, multi_column_table_docx):
-    response = client.post(
+def test_parse_preserves_every_row_and_column(authenticated_client, multi_column_table_docx):
+    response = authenticated_client.post(
         "/api/documents/parse",
         files={
             "file": (
@@ -104,8 +104,8 @@ def test_parse_preserves_every_row_and_column(client, multi_column_table_docx):
             assert f"R{row_index}C{column_index}" in table_html
 
 
-def test_parse_preserves_merged_cell_spans(client, merged_table_docx):
-    response = client.post(
+def test_parse_preserves_merged_cell_spans(authenticated_client, merged_table_docx):
+    response = authenticated_client.post(
         "/api/documents/parse",
         files={
             "file": (

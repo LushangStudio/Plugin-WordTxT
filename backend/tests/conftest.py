@@ -4,12 +4,39 @@ import pytest
 from docx import Document
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.core.auth import require_current_user
+from app.core.config import Settings
+from app.main import app, create_app
+from app.schemas.auth import SessionUser
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
+def authenticated_client() -> TestClient:
+    app.dependency_overrides[require_current_user] = lambda: SessionUser(
+        user_id="test-user",
+        user_name="Test User",
+        user_type="研究生",
+    )
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.pop(require_current_user, None)
+
+
+@pytest.fixture
+def anonymous_client() -> TestClient:
+    application = create_app(
+        Settings(
+            _env_file=None,
+            app_env="test",
+            uis_oauth_client_id="client-id",
+            uis_oauth_client_secret="client-secret",
+            auth_session_secret="s" * 32,
+        )
+    )
+    with TestClient(application) as test_client:
+        yield test_client
 
 
 @pytest.fixture

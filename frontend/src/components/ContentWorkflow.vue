@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { ChevronDown, Columns2, FileSearch, RotateCcw, Sparkles, Table2, Trash2, WandSparkles } from '@lucide/vue'
 
 import { classifyItems, extractDocument, generateNotice } from '../services/api'
 import type { ExtractedDocumentTable, GeneratedResult, GenerationSettings } from '../types'
 import { removeSection, splitTextBlocks } from '../utils/text'
+import UiButton from './ui/UiButton.vue'
 
 const props = defineProps<{
   file: File | null
@@ -165,48 +167,49 @@ async function generate() {
 </script>
 
 <template>
-  <section class="card collapsible">
-    <button class="section-trigger" type="button" @click="open = !open">
-      <span><strong>内容筛选生成</strong><small>提取或粘贴 Word 内容，确认后生成通知</small></span>
-      <span>{{ open ? '收起' : '展开' }}</span>
+  <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <button class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-6" type="button" :aria-expanded="open" aria-controls="content-workflow" @click="open = !open">
+      <span class="flex min-w-0 items-center gap-3">
+        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-700 text-white"><Columns2 :size="19" aria-hidden="true" /></span>
+        <strong class="block min-w-0 truncate text-base leading-6 font-bold text-slate-950">内容筛选生成</strong>
+      </span>
+      <ChevronDown :size="18" class="shrink-0 text-slate-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true" />
     </button>
-    <div v-if="open" class="section-body form-stack">
-      <div class="button-row wrap">
-        <button class="btn primary" type="button" :disabled="loading" @click="extract">提取 Word 内容</button>
-        <button class="btn ghost" type="button" :disabled="loading" @click="applyFilter('restore')">恢复原文</button>
-        <button class="btn ghost" type="button" :disabled="loading" @click="applyFilter('removeReminders')">删除工作提醒</button>
-        <button class="btn ghost" type="button" :disabled="loading" @click="applyFilter('removeMaterials')">删除发放材料</button>
+    <div v-if="open" id="content-workflow" class="grid gap-5 border-t border-slate-100 px-5 py-5 sm:px-6">
+      <div class="flex flex-wrap gap-2">
+        <UiButton variant="primary" :disabled="loading" @click="extract"><FileSearch :size="16" aria-hidden="true" />提取 Word 内容</UiButton>
+        <UiButton variant="outline" :disabled="loading" @click="applyFilter('restore')"><RotateCcw :size="16" aria-hidden="true" />恢复原文</UiButton>
+        <UiButton variant="outline" :disabled="loading" @click="applyFilter('removeReminders')"><Trash2 :size="16" aria-hidden="true" />删除工作提醒</UiButton>
+        <UiButton variant="outline" :disabled="loading" @click="applyFilter('removeMaterials')"><Trash2 :size="16" aria-hidden="true" />删除发放材料</UiButton>
+        <UiButton variant="secondary" :disabled="loading" @click="applyFilter('student')"><Sparkles :size="16" aria-hidden="true" />AI：仅学生事项</UiButton>
       </div>
-      <div class="button-row wrap">
-        <button class="btn secondary" type="button" :disabled="loading" @click="applyFilter('student')">AI：仅学生事项</button>
-      </div>
-      <div class="content-workspace">
-        <div class="content-pane editor-pane">
-          <div class="pane-heading">
-            <span><strong>可编辑文本</strong><small>表格占位符代表原文位置，请勿修改占位符文字。</small></span>
+      <div class="grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-2">
+        <div class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          <div class="flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <span><strong class="block text-sm text-slate-900">可编辑文本</strong><small class="mt-1 block text-xs font-normal text-slate-500">表格占位符代表原文位置，请勿修改。</small></span>
           </div>
           <textarea
             v-model="text"
-            class="content-editor"
+            class="block min-h-[470px] w-full resize-y border-0 bg-white px-4 py-4 text-sm leading-7 text-slate-800 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
             rows="18"
             placeholder="请先提取 Word 内容，也可以直接粘贴文本。"
           />
         </div>
-        <div class="content-pane preview-pane">
-          <div class="pane-heading">
-            <span><strong>格式预览</strong><small>文本修改会实时同步，原表格保持 Word 中的行列结构。</small></span>
-            <span class="table-count">表格 {{ activeTableCount }} / {{ tables.length }}</span>
+        <div class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+          <div class="flex min-h-16 items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+            <span><strong class="block text-sm text-slate-900">格式预览</strong><small class="mt-1 block text-xs font-normal text-slate-500">文本实时同步，表格保留原始行列结构。</small></span>
+            <span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800"><Table2 :size="13" aria-hidden="true" />{{ activeTableCount }} / {{ tables.length }}</span>
           </div>
-          <div v-if="text.trim()" class="document-preview" v-html="previewHtml" />
-          <div v-else class="document-preview preview-empty">提取内容后在这里核对表格格式。</div>
+          <div v-if="text.trim()" class="document-preview min-h-[470px] max-h-[680px] overflow-auto bg-white p-5 text-sm leading-7 text-slate-700" v-html="previewHtml" />
+          <div v-else class="grid min-h-[470px] place-items-center bg-white p-6 text-center text-sm text-slate-400">提取内容后在这里核对表格格式。</div>
         </div>
       </div>
-      <div class="status-line">
-        <span>{{ status }}</span><span>当前约 {{ characterCount }} 字</span>
+      <div class="flex flex-col justify-between gap-2 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500 sm:flex-row">
+        <span>{{ status }}</span><span class="shrink-0 font-semibold text-slate-600">当前约 {{ characterCount }} 字</span>
       </div>
-      <button class="btn primary wide" type="button" :disabled="loading || !aiConfigured" @click="generate">
-        {{ loading ? '处理中…' : '根据筛选内容生成备忘' }}
-      </button>
+      <UiButton variant="primary" size="lg" class="w-full" :disabled="loading || !aiConfigured" @click="generate">
+        <WandSparkles :size="18" aria-hidden="true" />{{ loading ? '处理中…' : '根据筛选内容生成通知' }}
+      </UiButton>
     </div>
   </section>
 </template>

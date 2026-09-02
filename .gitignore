@@ -21,3 +21,7 @@ backend/__pycache__/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local agent workflow artifacts
+.superpowers/
+docs/superpowers/

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { ChevronDown, Contact, MessageSquareText, RotateCcw, Save, Settings2, TextQuote } from '@lucide/vue'
 
 import type { GenerationSettings } from '../types'
+import UiButton from './ui/UiButton.vue'
 
 const props = defineProps<{ modelValue: GenerationSettings }>()
 const emit = defineEmits<{ 'update:modelValue': [value: GenerationSettings] }>()
@@ -63,66 +65,85 @@ onMounted(loadTemplate)
 </script>
 
 <template>
-  <section class="card collapsible">
-    <button class="section-trigger" type="button" @click="open = !open">
-      <span><strong>通用生成设置</strong><small>提示词模板、通知开头、通知结尾与联系人规则</small></span>
-      <span>{{ open ? '收起' : '展开' }}</span>
+  <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <button class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-6" type="button" :aria-expanded="open" aria-controls="generation-settings" @click="open = !open">
+      <span class="flex min-w-0 items-center gap-3">
+        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Settings2 :size="19" aria-hidden="true" /></span>
+        <strong class="block min-w-0 truncate text-base leading-6 font-bold text-slate-950">通用生成设置</strong>
+      </span>
+      <span class="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-500">
+        {{ open ? '收起' : '展开' }}
+        <ChevronDown :size="17" class="transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true" />
+      </span>
     </button>
-    <div v-if="open" class="section-body">
-      <nav class="settings-tabs" aria-label="通用生成设置区域">
+    <div v-if="open" id="generation-settings" class="border-t border-slate-100 px-5 py-5 sm:px-6">
+      <nav class="grid grid-cols-1 gap-1 rounded-xl bg-slate-100 p-1 sm:grid-cols-3" role="tablist" aria-label="通用生成设置区域">
         <button
           type="button"
-          :class="{ active: activePanel === 'prompt' }"
+          role="tab"
+          aria-controls="settings-prompt"
+          class="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          :class="activePanel === 'prompt' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
           :aria-selected="activePanel === 'prompt'"
           @click="activePanel = 'prompt'"
-        >提示词模板</button>
+        ><MessageSquareText :size="16" aria-hidden="true" />提示词模板</button>
         <button
           type="button"
-          :class="{ active: activePanel === 'header' }"
+          role="tab"
+          aria-controls="settings-header"
+          class="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          :class="activePanel === 'header' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
           :aria-selected="activePanel === 'header'"
           @click="activePanel = 'header'"
-        >通知开头</button>
+        ><TextQuote :size="16" aria-hidden="true" />通知开头</button>
         <button
           type="button"
-          :class="{ active: activePanel === 'output' }"
+          role="tab"
+          aria-controls="settings-output"
+          class="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          :class="activePanel === 'output' ? 'bg-white text-blue-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
           :aria-selected="activePanel === 'output'"
           @click="activePanel = 'output'"
-        >通知输出设置</button>
+        ><Contact :size="16" aria-hidden="true" />通知输出设置</button>
       </nav>
 
-      <div v-if="activePanel === 'prompt'" class="form-stack settings-panel">
-        <label>提示词模板
-          <select v-model="selectedTemplate">
+      <div v-if="activePanel === 'prompt'" id="settings-prompt" role="tabpanel" class="mt-5 grid gap-4">
+        <label class="grid gap-2 text-sm font-semibold text-slate-700">提示词模板
+          <select v-model="selectedTemplate" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
             <option v-for="(template, key) in templates" :key="key" :value="key">{{ template.name }}</option>
           </select>
         </label>
-        <label>处理要求
+        <label class="grid gap-2 text-sm font-semibold text-slate-700">处理要求
           <textarea
             :value="settings.userPrompt"
             rows="7"
+            class="min-h-36 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-7 font-normal text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             @input="update('userPrompt', ($event.target as HTMLTextAreaElement).value)"
           />
         </label>
-        <div class="button-row">
-          <button class="btn secondary" type="button" @click="savePrompt">保存提示词</button>
-          <button class="btn ghost" type="button" @click="resetPrompt">恢复默认</button>
+        <div class="flex flex-wrap gap-2">
+          <UiButton variant="secondary" @click="savePrompt"><Save :size="16" aria-hidden="true" />保存提示词</UiButton>
+          <UiButton variant="ghost" @click="resetPrompt"><RotateCcw :size="16" aria-hidden="true" />恢复默认</UiButton>
         </div>
       </div>
 
-      <div v-else-if="activePanel === 'header'" class="form-stack settings-panel">
-        <label>通知开头
-          <input :value="settings.header" @input="update('header', ($event.target as HTMLInputElement).value)" />
+      <div v-else-if="activePanel === 'header'" id="settings-header" role="tabpanel" class="mt-5 min-h-40">
+        <label class="grid gap-2 text-sm font-semibold text-slate-700">通知开头
+          <input class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" :value="settings.header" @input="update('header', ($event.target as HTMLInputElement).value)" />
         </label>
+        <p class="mt-3 text-xs leading-5 text-slate-500">这段文字会放在所有生成内容之前，可直接填写称呼或导语。</p>
       </div>
 
-      <div v-else class="form-stack settings-panel">
-        <label>通知结尾
-          <input :value="settings.footer" @input="update('footer', ($event.target as HTMLInputElement).value)" />
+      <div v-else id="settings-output" role="tabpanel" class="mt-5 grid gap-5">
+        <label class="grid gap-2 text-sm font-semibold text-slate-700">通知结尾
+          <input class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100" :value="settings.footer" @input="update('footer', ($event.target as HTMLInputElement).value)" />
         </label>
-        <fieldset>
-          <legend>联系人处理</legend>
-          <label class="inline"><input type="radio" value="keep" :checked="settings.contactMode === 'keep'" @change="update('contactMode', 'keep')" />保留联系人</label>
-          <label class="inline"><input type="radio" value="remove" :checked="settings.contactMode === 'remove'" @change="update('contactMode', 'remove')" />删除联系人</label>
+        <fieldset class="rounded-xl border border-slate-200 p-4">
+          <legend class="px-1 text-sm font-semibold text-slate-700">联系人处理</legend>
+          <div class="grid gap-2 sm:grid-cols-2">
+            <label class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold transition-colors" :class="settings.contactMode === 'keep' ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"><input class="size-4 accent-blue-700" type="radio" value="keep" :checked="settings.contactMode === 'keep'" @change="update('contactMode', 'keep')" />保留原文联系人</label>
+            <label class="flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-semibold transition-colors" :class="settings.contactMode === 'remove' ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-slate-200 text-slate-600 hover:bg-slate-50'"><input class="size-4 accent-blue-700" type="radio" value="remove" :checked="settings.contactMode === 'remove'" @change="update('contactMode', 'remove')" />删除联系人信息</label>
+          </div>
         </fieldset>
       </div>
     </div>

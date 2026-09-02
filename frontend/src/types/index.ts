@@ -79,3 +79,14 @@ export interface HealthResponse {
   environment: string
   ai_configured: boolean
 }
+
+export interface AuthUser {
+  user_id: string
+  user_name: string
+  user_type: string
+}
+
+export interface AuthMeResponse {
+  authenticated: boolean
+  user: AuthUser | null
+}

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { ArrowUpDown, Building2, CheckCheck, ChevronDown, Eye, FileSearch, FileSpreadsheet, GraduationCap, Sparkles, UserRound, WandSparkles, X } from '@lucide/vue'
 
 import { classifyItems, exportWorkbook, generateNotice, parseDocument } from '../services/api'
 import type { FilterType, GeneratedResult, GenerationSettings, ParsedItem, SortType } from '../types'
 import { monthDayValue } from '../utils/text'
+import UiButton from './ui/UiButton.vue'
 
 const props = defineProps<{
   file: File | null
@@ -146,37 +148,40 @@ async function generate() {
 </script>
 
 <template>
-  <section class="card collapsible">
-    <button class="section-trigger" type="button" @click="open = !open">
-      <span><strong>表格选择生成</strong><small>逐条复核、排序、AI 辅助选择并导出 Excel</small></span>
-      <span>{{ open ? '收起' : '展开' }}</span>
+  <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <button class="flex w-full items-center justify-between gap-4 px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600 sm:px-6" type="button" :aria-expanded="open" aria-controls="table-workflow" @click="open = !open">
+      <span class="flex min-w-0 items-center gap-3">
+        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-700 text-white"><FileSpreadsheet :size="19" aria-hidden="true" /></span>
+        <strong class="block min-w-0 truncate text-base leading-6 font-bold text-slate-950">表格选择生成</strong>
+      </span>
+      <ChevronDown :size="18" class="shrink-0 text-slate-500 transition-transform duration-200" :class="open ? 'rotate-180' : ''" aria-hidden="true" />
     </button>
-    <div v-if="open" class="section-body form-stack">
-      <div class="button-row">
-        <button class="btn primary" type="button" :disabled="loading" @click="parse">解析预览</button>
+    <div v-if="open" id="table-workflow" class="grid gap-5 border-t border-slate-100 px-5 py-5 sm:px-6">
+      <div class="flex flex-wrap gap-2">
+        <UiButton variant="primary" :disabled="loading" @click="parse"><FileSearch :size="16" aria-hidden="true" />解析预览</UiButton>
+        <UiButton variant="secondary" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('student')"><Sparkles :size="16" aria-hidden="true" />学生事项</UiButton>
+        <UiButton variant="secondary" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('graduate')"><GraduationCap :size="16" aria-hidden="true" />毕业班</UiButton>
+        <UiButton variant="secondary" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('nonGraduate')"><UserRound :size="16" aria-hidden="true" />非毕业班</UiButton>
+        <UiButton variant="secondary" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('departmentRecruitment')"><Building2 :size="16" aria-hidden="true" />院系招募/汇总</UiButton>
       </div>
-      <div class="button-row wrap">
-        <button class="btn secondary" type="button" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('student')">学生事项</button>
-        <button class="btn secondary" type="button" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('graduate')">毕业班</button>
-        <button class="btn secondary" type="button" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('nonGraduate')">非毕业班</button>
-        <button class="btn secondary" type="button" :disabled="loading || !aiConfigured || !items.length" @click="aiFilter('departmentRecruitment')">院系招募/汇总</button>
-        <button class="btn ghost" type="button" :disabled="!items.length" @click="selectAll">全选</button>
-        <button class="btn ghost" type="button" :disabled="!items.length" @click="clearSelection">取消全选</button>
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-wrap items-center gap-2">
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-700"><ArrowUpDown :size="16" aria-hidden="true" />排序
+            <select v-model="sortType" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-normal text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+              <option value="original">原文档顺序</option>
+              <option value="time">时间顺序</option>
+              <option value="custom">自定义拖拽</option>
+            </select>
+          </label>
+          <UiButton variant="ghost" size="sm" :disabled="!items.length" @click="selectAll"><CheckCheck :size="15" aria-hidden="true" />全选</UiButton>
+          <UiButton variant="ghost" size="sm" :disabled="!items.length" @click="clearSelection"><X :size="15" aria-hidden="true" />取消全选</UiButton>
+        </div>
+        <span class="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 ring-1 ring-slate-200">已选择 {{ selectedItems.length }} / {{ items.length }} 条</span>
       </div>
-      <div class="button-row between">
-        <label class="inline">排序
-          <select v-model="sortType">
-            <option value="original">原文档顺序</option>
-            <option value="time">时间顺序</option>
-            <option value="custom">自定义拖拽</option>
-          </select>
-        </label>
-        <span class="muted">已选择 {{ selectedItems.length }} / {{ items.length }} 条</span>
-      </div>
-      <p class="status-line">{{ status }}</p>
+      <p class="m-0 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">{{ status }}</p>
 
-      <div v-if="items.length" class="table-scroll">
-        <table class="data-table">
+      <div v-if="items.length" class="max-h-[660px] overflow-auto rounded-xl border border-slate-200">
+        <table class="data-table w-full border-separate border-spacing-0 text-left text-xs text-slate-700">
           <thead><tr><th>选择</th><th>编号</th><th>时间</th><th>对象分类</th><th>工作概述</th><th>内容</th></tr></thead>
           <tbody>
             <template v-for="(item, index) in displayedItems" :key="item.uid">
@@ -190,7 +195,7 @@ async function generate() {
                 @dragover.prevent
                 @drop="drop(index)"
               >
-                <td><input type="checkbox" :checked="selected.has(item.uid)" @change="toggle(item.uid, ($event.target as HTMLInputElement).checked)" /></td>
+                <td><input class="size-4 accent-blue-700" type="checkbox" :aria-label="`选择事项 ${item.number}`" :checked="selected.has(item.uid)" @change="toggle(item.uid, ($event.target as HTMLInputElement).checked)" /></td>
                 <td>{{ item.number }}</td>
                 <td>{{ item.time || '未明确' }}</td>
                 <td>{{ item.category || '未分类' }}</td>
@@ -202,15 +207,15 @@ async function generate() {
         </table>
       </div>
 
-      <div v-if="items.length" class="button-row wrap">
-        <button class="btn secondary" type="button" :disabled="loading" @click="previewOpen = !previewOpen">{{ previewOpen ? '关闭预览' : '预览勾选内容' }}</button>
-        <button class="btn secondary" type="button" :disabled="loading" @click="exportExcel">导出 Excel</button>
-        <button class="btn primary" type="button" :disabled="loading || !aiConfigured" @click="generate">根据勾选事项生成通知</button>
+      <div v-if="items.length" class="flex flex-wrap gap-2">
+        <UiButton variant="outline" :disabled="loading" @click="previewOpen = !previewOpen"><Eye :size="16" aria-hidden="true" />{{ previewOpen ? '关闭预览' : '预览勾选内容' }}</UiButton>
+        <UiButton variant="secondary" :disabled="loading" @click="exportExcel"><FileSpreadsheet :size="16" aria-hidden="true" />导出 Excel</UiButton>
+        <UiButton variant="primary" :disabled="loading || !aiConfigured" @click="generate"><WandSparkles :size="16" aria-hidden="true" />根据勾选事项生成通知</UiButton>
       </div>
-      <div v-if="previewOpen" class="selection-preview">
-        <article v-for="item in selectedItems" :key="item.uid">
-          <strong>{{ item.number }}. {{ item.summary }}</strong>
-          <div v-html="item.content_html" />
+      <div v-if="previewOpen" class="grid gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-4">
+        <article v-for="item in selectedItems" :key="item.uid" class="border-b border-blue-100 pb-3 text-sm leading-7 last:border-0 last:pb-0">
+          <strong class="text-slate-900">{{ item.number }}. {{ item.summary }}</strong>
+          <div class="mt-1 text-slate-600" v-html="item.content_html" />
         </article>
       </div>
     </div>
