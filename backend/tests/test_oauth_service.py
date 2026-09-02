@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.config import Settings
-from app.schemas.auth import AuthMeResponse, SessionUser, UISUserInfo
+from app.schemas.auth import AuthMeResponse, OAuthToken, SessionUser, UISUserInfo
 from app.services.oauth_service import OAuthProviderError, UISOAuthClient
 
 
@@ -265,3 +265,53 @@ def test_auth_response_models_forbid_undeclared_or_mistyped_session_data() -> No
         SessionUser(user_id="01234567890", user_name="Test User", user_type="研究生", mobile="x")
     with pytest.raises(ValidationError):
         AuthMeResponse(authenticated=True, user=None)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("user_id", ""),
+        ("user_name", "   "),
+        ("user_type", "\t"),
+        ("sessionId", "\r\n"),
+    ],
+)
+def test_required_uis_identity_fields_reject_blank_values(
+    field: str,
+    value: str,
+) -> None:
+    payload = {
+        "user_id": "01234567890",
+        "user_name": "Test User",
+        "user_type": "研究生",
+        "sessionId": "uis-session",
+    }
+    payload[field] = value
+
+    with pytest.raises(ValidationError):
+        UISUserInfo.model_validate(payload)
+
+
+def test_required_auth_strings_are_trimmed() -> None:
+    user = UISUserInfo(
+        user_id=" 01234567890 ",
+        user_name=" Test User ",
+        user_type=" 本专科生 ",
+        sessionId=" uis-session ",
+    )
+
+    assert user.user_id == "01234567890"
+    assert user.user_name == "Test User"
+    assert user.user_type == "本专科生"
+    assert user.sessionId == "uis-session"
+
+
+@pytest.mark.parametrize("access_token", ["", "   "])
+def test_oauth_token_rejects_blank_access_token(access_token: str) -> None:
+    with pytest.raises(ValidationError):
+        OAuthToken(access_token=access_token)
+
+
+def test_oauth_token_rejects_negative_expiry() -> None:
+    with pytest.raises(ValidationError):
+        OAuthToken(access_token="access-token", expires_in=-1)

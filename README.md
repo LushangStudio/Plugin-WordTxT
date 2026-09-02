@@ -151,7 +151,9 @@ npm run dev
 在 UIS 平台登记以下固定地址：
 
 - 登录回调地址：`https://lushangstudio.fudan.edu.cn/api/auth/callback`
-- 前端被动退出地址：`https://lushangstudio.fudan.edu.cn/api/auth/sso-logout`（UIS 调用时通过 `token` 查询参数传值）
+- 前端被动退出地址：`https://lushangstudio.fudan.edu.cn/api/auth/sso-logout`（选择手册 3.2.5.2.1“前端用户会话注销”，不传 `token`）
+
+主动退出时，后端固定向 UIS 全局退出地址提交 `redirectToLogin=true` 和上述 `AUTH_FRONTEND_URL`，不接受请求方覆盖返回地址。
 
 代码和自动化测试已经覆盖本地 OAuth 协议行为，但在 UIS 下发真实 `client_id` 和 `client_secret` 前，不能完成或宣称真实 UIS 跳转、授权码交换、用户信息读取及全局退出联调。
 
@@ -162,7 +164,7 @@ npm run dev
 - 将所有 `/api/*` 请求（包括回调和被动退出）原样反向代理到 FastAPI 服务，例如 `127.0.0.1:8000`；保留 HTTP 方法、请求体、Cookie 和 `Set-Cookie`。
 - 其他路径提供 `frontend/dist` 静态文件，并为前端路由回退到 `index.html`。
 - 不要把 `/api/auth/callback` 或 `/api/auth/sso-logout` 回退到前端，否则 OAuth 回调和退出会失效。
-- 上游网关、负载均衡、CDN 和反向代理不得记录上述两个认证地址的原始查询字符串。其中可能包含授权码、`state` 或 Token。应用已对 Uvicorn 访问日志做脱敏，但请求到达应用前的代理日志仍需单独配置为不记录或脱敏查询参数。
+- 上游网关、负载均衡、CDN 和反向代理不得记录 OAuth 回调地址的原始查询字符串，其中会包含授权码和 `state`。前端被动退出地址按约定不应携带查询参数；作为纵深防护，也应避免记录该地址的原始查询字符串。应用已对 Uvicorn 访问日志做脱敏，但请求到达应用前的代理日志仍需单独配置为不记录或脱敏查询参数。
 
 ## 自动验证
 
@@ -191,7 +193,7 @@ npm run build
 | GET | `/api/auth/callback` | UIS 登录回调；由 UIS 平台访问 |
 | GET | `/api/auth/me` | 查询当前本地登录会话 |
 | POST | `/api/auth/logout` | 清除本地会话并跳转到 UIS 全局退出 |
-| GET | `/api/auth/sso-logout` | 接收 UIS 前端被动退出通知 |
+| GET | `/api/auth/sso-logout` | 接收 UIS 前端被动退出通知并清除当前浏览器会话 |
 | POST | `/api/documents/extract` | 提取 Word 全文及原表格映射 |
 | POST | `/api/documents/parse` | 将 Word 解析为结构化事项 |
 | POST | `/api/filters/classify` | AI 受众分类与筛选 |
@@ -202,6 +204,6 @@ npm run build
 
 - 真实密钥只应通过服务器环境变量注入，或在本地写入 `backend/.env`；该文件已被 `.gitignore` 排除。
 - 不要在 `frontend` 下创建包含密钥的 `VITE_*` 变量；Vite 变量会进入浏览器构建产物。
-- 浏览器会话不保存 UIS 的原始 Access Token 或 Refresh Token，只保存最小用户信息和用于被动退出比对的不可逆摘要。
+- 浏览器会话不保存 UIS 的原始 Access Token、Refresh Token 或 Token 摘要，只保存最小用户信息和登录时间。
 - 旧版纯前端入口和密钥配置文件已从当前项目中移除。
 - 如果某个密钥曾经提交到 Git、发到聊天或出现在纯前端代码中，应立即在服务商后台撤销并重新生成；仅从当前文件删除不能清除 Git 历史。

@@ -31,7 +31,7 @@ function getApiUrl(path: string): string {
   return `${API_BASE}${path}`
 }
 
-function request(path: string, init?: RequestInit): Promise<Response> {
+export function request(path: string, init?: RequestInit): Promise<Response> {
   return fetch(getApiUrl(path), { ...init, credentials: 'include' })
 }
 

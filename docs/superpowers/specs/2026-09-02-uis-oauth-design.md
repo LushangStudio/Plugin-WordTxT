@@ -31,14 +31,14 @@
 7. 其他用户建立本应用会话并跳回固定前端地址。
 8. 所有文档、筛选、通知和导出 API 要求本地会话；健康检查及 OAuth 必需路由公开。
 9. 主动退出通过 `POST /api/auth/logout` 清除本地会话并 303 到 UIS 全局退出地址，`redirectToUrl` 只能使用配置中的固定前端地址。
-10. UIS 前端被动退出调用 `GET /api/auth/sso-logout?token=...`。应用比较传入 Token 的 SHA-256 摘要与当前会话保存的摘要；匹配时清除会话，始终返回无敏感信息的 204。
+10. UIS 前端被动退出在用户浏览器中异步调用 `GET /api/auth/sso-logout`。应用直接清除当前浏览器会话并返回无敏感信息的 204；该地址不接收 Token 参数。
 
 ## 后端模块边界
 
 - `app/core/config.py`：OAuth、会话 Cookie 和固定跳转地址配置；提供不暴露密钥的 `auth_configured` 判定。
 - `app/schemas/auth.py`：严格的 UIS UserInfo、前端用户和 `/auth/me` 响应模型。
 - `app/services/oauth_service.py`：授权 URL、Token 交换、UserInfo 请求和平台错误归一化。
-- `app/core/auth.py`：本地会话创建/解析、业务 API 的 `require_current_user` 依赖、Token 摘要。
+- `app/core/auth.py`：本地会话创建/解析和业务 API 的 `require_current_user` 依赖。
 - `app/api/routes/auth.py`：登录、回调、当前用户、主动退出和被动退出 HTTP 流程。
 - `app/main.py`：安装 Starlette `SessionMiddleware`；测试可通过 `create_app(settings)` 构造独立应用。
 - `app/api/router.py`：公开挂载 auth/health，将鉴权依赖统一施加到四组业务路由。
@@ -47,7 +47,8 @@
 
 - Cookie 名称默认为 `lushangstudio_session`，`HttpOnly`，`SameSite=Lax`，生产环境要求 `Secure=true`，最长 8 小时。
 - `AUTH_SESSION_SECRET` 至少 32 个字符。缺少 `client_id`、`client_secret`、回调地址或合格会话密钥时，认证入口返回 503，业务路由保持失败关闭。
-- 会话只保存前端需要的用户标识、用户类型、本次登录时间及 `access_token` 摘要；不保存原始 Access/Refresh Token、手机号、邮箱或院系。
+- 会话只保存前端需要的用户标识、用户类型和本次登录时间；不保存原始 Access/Refresh Token、Token 摘要、手机号、邮箱或院系。
+- 被动退出采用手册 3.2.5.2.1 的前端用户会话注销模式。生产环境的 UIS 与应用均为 HTTPS 且同属 `fudan.edu.cn`，因此保留 `SameSite=Lax`；若学校改要求 3.2.5.2.2 服务端模式，则必须另行引入共享会话存储维护 Token 与本地会话的关联。
 - OAuth `state` 使用 `secrets.token_urlsafe(32)`，采用常量时间比较，单次使用并设置 10 分钟有效期。
 - 不接受用户传入的任意登录后跳转地址，避免开放重定向。
 - 平台即使以 HTTP 200 返回 `errcode`，也按 OAuth 失败处理；错误响应和日志不得包含凭据、授权码或 Token。
@@ -70,7 +71,6 @@
 5. 当 `user_type` 为 `本专科生` 时，系统应拒绝访问并向前端提供明确提示。
 6. 当非本科生登录成功时，系统应建立本地会话，`/api/auth/me` 返回最小用户信息，受保护业务 API 可访问。
 7. 当请求未携带有效本地会话时，五个业务端点应返回 401；`/api/health` 仍返回 200。
-8. 当用户主动退出或收到与当前会话 Token 摘要匹配的被动退出通知时，系统应清除本地会话。
+8. 当用户主动退出或 UIS 在当前浏览器访问前端被动退出地址时，系统应清除本地会话。
 9. 当前端处于匿名状态时，工作台不应渲染；登录后应显示工作台及用户退出入口。
 10. 当 API 返回 401 时，前端应切回匿名状态；所有 API 与下载请求应携带 Cookie 凭据模式。
-

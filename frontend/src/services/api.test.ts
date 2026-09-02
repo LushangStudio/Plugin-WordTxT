@@ -3,11 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   exportWorkbook,
   getHealth,
+  request,
   setUnauthorizedHandler,
   UnauthorizedError,
 } from './api'
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   setUnauthorizedHandler(null)
 })
@@ -24,6 +26,17 @@ describe('API requests', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await getHealth()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/health', expect.objectContaining({
+      credentials: 'include',
+    }))
+  })
+
+  it('does not allow request callers to disable cookie credentials', async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await request('/health', { credentials: 'omit' })
 
     expect(fetchMock).toHaveBeenCalledWith('/api/health', expect.objectContaining({
       credentials: 'include',
@@ -55,6 +68,18 @@ describe('API requests', () => {
     setUnauthorizedHandler(onUnauthorized)
 
     await expect(getHealth()).rejects.toBeInstanceOf(UnauthorizedError)
+    expect(onUnauthorized).toHaveBeenCalledOnce()
+  })
+
+  it('notifies the application and rejects with UnauthorizedError when an Excel export returns 401', async () => {
+    const onUnauthorized = vi.fn()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Not authenticated' }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 401,
+    })))
+    setUnauthorizedHandler(onUnauthorized)
+
+    await expect(exportWorkbook([], 'memo', 'source.docx', 'original')).rejects.toBeInstanceOf(UnauthorizedError)
     expect(onUnauthorized).toHaveBeenCalledOnce()
   })
 })

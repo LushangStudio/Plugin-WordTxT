@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import hmac
 import json
 from urllib.parse import parse_qs, quote, urlparse
@@ -269,14 +268,11 @@ def test_successful_callback_stores_only_minimal_signed_session(
             "user_type": "研究生",
         },
         "authenticated_at": 1_000,
-        "access_token_sha256": hashlib.sha256(
-            b"provider-access-token"
-        ).hexdigest(),
     }
 
 
-def test_exact_undergraduate_type_is_blocked_without_a_session() -> None:
-    client, fake, settings = make_client(FakeUISOAuthClient(user_type="本专科生"))
+def test_whitespace_padded_undergraduate_type_is_blocked_without_a_session() -> None:
+    client, fake, settings = make_client(FakeUISOAuthClient(user_type=" 本专科生 "))
     state = begin_login(client)
 
     response = client.get(
@@ -313,34 +309,18 @@ def test_active_logout_clears_session_and_uses_only_fixed_redirect() -> None:
         "/GLO",
     )
     assert parse_qs(location.query) == {
-        "redirectToUrl": ["https://app.example"]
+        "redirectToLogin": ["true"],
+        "redirectToUrl": ["https://app.example"],
     }
     assert "attacker.example" not in response.headers["location"]
     assert client.get("/api/auth/me").json()["authenticated"] is False
 
 
-def test_mismatching_passive_logout_token_keeps_current_session() -> None:
+def test_frontend_passive_logout_clears_current_session_without_a_token() -> None:
     client, _, _ = make_client()
     complete_login(client)
 
-    response = client.get(
-        "/api/auth/sso-logout",
-        params={"token": "a-different-token"},
-    )
-
-    assert response.status_code == 204
-    assert response.content == b""
-    assert client.get("/api/auth/me").json()["authenticated"] is True
-
-
-def test_matching_passive_logout_token_clears_current_session() -> None:
-    client, _, _ = make_client()
-    complete_login(client)
-
-    response = client.get(
-        "/api/auth/sso-logout",
-        params={"token": "provider-access-token"},
-    )
+    response = client.get("/api/auth/sso-logout")
 
     assert response.status_code == 204
     assert response.content == b""

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import time
 
 from fastapi import Depends, HTTPException, Request, status
@@ -12,11 +11,6 @@ from app.schemas.auth import SessionUser
 
 USER_SESSION_KEY = "user"
 AUTHENTICATED_AT_SESSION_KEY = "authenticated_at"
-TOKEN_DIGEST_SESSION_KEY = "access_token_sha256"
-
-
-def access_token_digest(access_token: str) -> str:
-    return hashlib.sha256(access_token.encode("utf-8")).hexdigest()
 
 
 def read_session_user(request: Request) -> SessionUser | None:
@@ -30,13 +24,12 @@ def read_session_user(request: Request) -> SessionUser | None:
         return None
 
 
-def establish_session(request: Request, user: SessionUser, access_token: str) -> None:
+def establish_session(request: Request, user: SessionUser) -> None:
     request.session.clear()
     request.session.update(
         {
             USER_SESSION_KEY: user.model_dump(),
             AUTHENTICATED_AT_SESSION_KEY: int(time.time()),
-            TOKEN_DIGEST_SESSION_KEY: access_token_digest(access_token),
         }
     )
 

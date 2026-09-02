@@ -182,7 +182,7 @@ describe('App workspace', () => {
   })
 
   it('keeps AI generation disabled when the health request fails', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
       const url = String(input)
       if (url.endsWith('/auth/me')) {
         return new Response(JSON.stringify({ authenticated: true, user: authenticatedUser }), {

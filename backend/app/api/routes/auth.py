@@ -9,8 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.core.auth import (
-    TOKEN_DIGEST_SESSION_KEY,
-    access_token_digest,
     establish_session,
     read_session_user,
 )
@@ -111,7 +109,6 @@ async def callback(
             user_name=user_info.user_name,
             user_type=user_info.user_type,
         ),
-        token.access_token,
     )
     return RedirectResponse(
         settings.auth_frontend_url,
@@ -134,6 +131,7 @@ def logout(
     return RedirectResponse(
         _fixed_url_with_query(
             settings.uis_oauth_logout_url,
+            redirectToLogin="true",
             redirectToUrl=settings.auth_frontend_url,
         ),
         status_code=status.HTTP_303_SEE_OTHER,
@@ -141,11 +139,6 @@ def logout(
 
 
 @router.get("/sso-logout", status_code=status.HTTP_204_NO_CONTENT)
-def sso_logout(request: Request, token: str = "") -> Response:
-    expected_digest = request.session.get(TOKEN_DIGEST_SESSION_KEY)
-    supplied_digest = access_token_digest(token)
-    if isinstance(expected_digest, str) and hmac.compare_digest(
-        expected_digest, supplied_digest
-    ):
-        request.session.clear()
+def sso_logout(request: Request) -> Response:
+    request.session.clear()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
