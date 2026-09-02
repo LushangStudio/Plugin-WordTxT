@@ -71,6 +71,17 @@ def test_auth_settings_have_protocol_defaults_and_fail_closed_without_secrets(
     assert auth_settings().auth_configured is True
 
 
+def test_auth_settings_treat_whitespace_only_session_secret_as_unconfigured() -> None:
+    settings = Settings(
+        _env_file=None,
+        uis_oauth_client_id="client-id",
+        uis_oauth_client_secret="client-secret",
+        auth_session_secret=" " * 32,
+    )
+
+    assert settings.auth_configured is False
+
+
 def test_build_authorization_url_uses_exact_authorization_code_contract() -> None:
     client = UISOAuthClient(auth_settings())
 
@@ -210,6 +221,40 @@ async def test_provider_http_errors_are_normalized_without_response_secrets(
     assert error.value.status_code == status_code
     assert "leaked-token" not in str(error.value)
     assert "secret-code" not in str(error.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["token", "user_info"])
+async def test_transport_errors_are_normalized_without_request_secrets(operation: str) -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        leaked_details = f"{request.url} {dict(request.headers)} {request.content!r}"
+        raise httpx.ConnectError(leaked_details, request=request)
+
+    settings = auth_settings().model_copy(
+        update={
+            "uis_oauth_token_url": "https://provider.example/token?query=query-secret",
+            "uis_oauth_user_info_url": "https://provider.example/user?query=query-secret",
+        }
+    )
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    client = UISOAuthClient(settings, http_client)
+
+    async with http_client:
+        with pytest.raises(OAuthProviderError) as error:
+            if operation == "token":
+                await client.exchange_code("secret-code")
+            else:
+                await client.fetch_user_info("secret-token")
+
+    message = str(error.value)
+    assert error.value.operation == operation
+    assert error.value.status_code is None
+    assert "provider.example" not in message
+    assert "query-secret" not in message
+    assert "client-secret" not in message
+    assert "Y2xpZW50LWlkOmNsaWVudC1zZWNyZXQ=" not in message
+    assert "secret-code" not in message
+    assert "secret-token" not in message
 
 
 def test_auth_response_models_forbid_undeclared_or_mistyped_session_data() -> None:

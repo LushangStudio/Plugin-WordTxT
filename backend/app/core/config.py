@@ -67,7 +67,7 @@ class Settings(BaseSettings):
             self.uis_oauth_client_id.strip()
             and self.uis_oauth_client_secret.strip()
             and self.uis_oauth_redirect_uri.strip()
-            and len(self.auth_session_secret) >= 32
+            and len(self.auth_session_secret.strip()) >= 32
         )
 
 

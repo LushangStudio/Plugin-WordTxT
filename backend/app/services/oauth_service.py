@@ -56,6 +56,7 @@ class UISOAuthClient:
 
     async def exchange_code(self, code: str) -> OAuthToken:
         response = await self._request(
+            "token",
             "POST",
             self.settings.uis_oauth_token_url,
             auth=httpx.BasicAuth(
@@ -72,6 +73,7 @@ class UISOAuthClient:
 
     async def fetch_user_info(self, access_token: str) -> UISUserInfo:
         response = await self._request(
+            "user_info",
             "GET",
             self.settings.uis_oauth_user_info_url,
             headers={"Authorization": f"Bearer {access_token}"},
@@ -82,11 +84,20 @@ class UISOAuthClient:
         except ValidationError as exc:
             raise OAuthProviderError("user_info", reason="invalid user info response") from exc
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
-        if self._client is not None:
-            return await self._client.request(method, url, **kwargs)
-        async with httpx.AsyncClient() as client:
-            return await client.request(method, url, **kwargs)
+    async def _request(
+        self,
+        operation: str,
+        method: str,
+        url: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        try:
+            if self._client is not None:
+                return await self._client.request(method, url, **kwargs)
+            async with httpx.AsyncClient() as client:
+                return await client.request(method, url, **kwargs)
+        except httpx.RequestError:
+            raise OAuthProviderError(operation, reason="request failed") from None
 
     @staticmethod
     def _response_data(response: httpx.Response, operation: str) -> dict[str, Any]:
