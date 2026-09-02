@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import secrets
 import time
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -37,6 +38,42 @@ def _require_auth_configuration(settings: Settings) -> None:
 
 def _fixed_url_with_query(url: str, **params: str) -> str:
     return str(httpx.URL(url).copy_merge_params(params))
+
+
+def _normalized_origin(url: str, *, require_origin_form: bool) -> tuple[str, str, int] | None:
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme.lower() not in {"http", "https"}
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        return None
+    if require_origin_form and (
+        parsed.path not in {"", "/"} or parsed.query or parsed.fragment
+    ):
+        return None
+    default_port = 443 if parsed.scheme.lower() == "https" else 80
+    return parsed.scheme.lower(), parsed.hostname.lower(), port or default_port
+
+
+def _has_same_origin_browser_source(request: Request, frontend_url: str) -> bool:
+    origin = request.headers.get("origin")
+    if origin is not None:
+        source_origin = _normalized_origin(origin, require_origin_form=True)
+    else:
+        referer = request.headers.get("referer")
+        source_origin = (
+            _normalized_origin(referer, require_origin_form=False)
+            if referer is not None
+            else None
+        )
+    frontend_origin = _normalized_origin(frontend_url, require_origin_form=False)
+    return source_origin is not None and source_origin == frontend_origin
 
 
 @router.get("/login")
@@ -127,6 +164,16 @@ def logout(
     request: Request,
     settings: Settings = Depends(get_settings),
 ) -> RedirectResponse:
+    if not _has_same_origin_browser_source(request, settings.auth_frontend_url):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Logout source is not allowed",
+        )
+    if read_session_user(request) is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     request.session.clear()
     return RedirectResponse(
         _fixed_url_with_query(

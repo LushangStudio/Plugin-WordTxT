@@ -14,6 +14,7 @@ from app.api.routes import auth as auth_routes
 from app.core.config import Settings
 from app.main import create_app
 from app.schemas.auth import OAuthToken, UISUserInfo
+from app.services.oauth_service import OAuthProviderError
 
 
 def configured_settings(**updates: object) -> Settings:
@@ -123,6 +124,11 @@ def complete_login(client: TestClient) -> None:
     assert response.status_code == 303
 
 
+def assert_auth_security_headers(response: object) -> None:
+    assert getattr(response, "headers")["cache-control"] == "no-store"
+    assert getattr(response, "headers").get("referrer-policy") == "no-referrer"
+
+
 def decode_session_cookie(client: TestClient, settings: Settings) -> dict[str, object]:
     cookie = client.cookies.get(settings.auth_session_cookie_name)
     assert cookie is not None
@@ -171,6 +177,69 @@ def test_login_redirect_creates_state_and_secure_cookie_attributes() -> None:
     assert "httponly" in set_cookie
     assert "samesite=lax" in set_cookie
     assert "max-age=28800" in set_cookie
+
+
+def test_auth_public_responses_disable_caching() -> None:
+    client, _, _ = make_client()
+
+    for response in (
+        client.get("/api/auth/login"),
+        client.get("/api/auth/me"),
+        client.get("/api/auth/sso-logout"),
+    ):
+        assert response.headers["cache-control"] == "no-store"
+
+
+def test_callback_success_and_http_error_disable_caching_and_referrers() -> None:
+    client, _, _ = make_client()
+    state = begin_login(client)
+
+    success = client.get(
+        "/api/auth/callback",
+        params={"code": "authorization-code", "state": state},
+    )
+    assert_auth_security_headers(success)
+
+    invalid_state = client.get(
+        "/api/auth/callback",
+        params={"code": "authorization-code", "state": "invalid-state"},
+    )
+    assert invalid_state.status_code == 400
+    assert_auth_security_headers(invalid_state)
+
+
+def test_callback_provider_error_disables_caching_and_referrers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, fake, _ = make_client()
+    state = begin_login(client)
+
+    async def reject_code(_: str) -> OAuthToken:
+        raise OAuthProviderError("provider unavailable")
+
+    monkeypatch.setattr(fake, "exchange_code", reject_code)
+    response = client.get(
+        "/api/auth/callback",
+        params={"code": "authorization-code", "state": state},
+    )
+
+    assert response.status_code == 502
+    assert_auth_security_headers(response)
+
+
+def test_callback_validation_and_trailing_slash_redirect_disable_caching_and_referrers() -> None:
+    client, _, _ = make_client()
+
+    validation_error = client.get("/api/auth/callback")
+    assert validation_error.status_code == 422
+    assert_auth_security_headers(validation_error)
+
+    trailing_slash = client.get(
+        "/api/auth/callback/",
+        params={"code": "unexpected-sensitive-code", "state": "unexpected-sensitive-state"},
+    )
+    assert trailing_slash.status_code == 307
+    assert_auth_security_headers(trailing_slash)
 
 
 def test_production_session_cookie_is_always_secure() -> None:
@@ -299,9 +368,11 @@ def test_active_logout_clears_session_and_uses_only_fixed_redirect() -> None:
     response = client.post(
         "/api/auth/logout",
         params={"return_url": "https://attacker.example/steal"},
+        headers={"origin": "https://app.example"},
     )
 
     assert response.status_code == 303
+    assert response.headers["cache-control"] == "no-store"
     location = urlparse(response.headers["location"])
     assert (location.scheme, location.netloc, location.path) == (
         "https",
@@ -316,6 +387,71 @@ def test_active_logout_clears_session_and_uses_only_fixed_redirect() -> None:
     assert client.get("/api/auth/me").json()["authenticated"] is False
 
 
+def test_active_logout_accepts_same_origin_referer_when_origin_is_absent() -> None:
+    client, _, _ = make_client()
+    complete_login(client)
+
+    response = client.post(
+        "/api/auth/logout",
+        headers={"referer": "https://app.example/workbench?tab=exports"},
+    )
+
+    assert response.status_code == 303
+    assert client.get("/api/auth/me").json()["authenticated"] is False
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"origin": "https://attacker.example"},
+        {"origin": "not a valid origin"},
+        {},
+    ],
+)
+def test_active_logout_rejects_untrusted_browser_sources_without_clearing_session(
+    headers: dict[str, str],
+) -> None:
+    client, _, _ = make_client()
+    complete_login(client)
+
+    response = client.post("/api/auth/logout", headers=headers)
+
+    assert response.status_code == 403
+    assert "location" not in response.headers
+    assert client.get("/api/auth/me").json()["authenticated"] is True
+
+
+def test_active_logout_rejects_anonymous_same_origin_request_without_redirecting() -> None:
+    client, _, _ = make_client()
+
+    response = client.post(
+        "/api/auth/logout",
+        headers={"origin": "https://app.example"},
+    )
+
+    assert response.status_code == 401
+    assert "location" not in response.headers
+
+
+def test_callback_login_reaches_protected_xlsx_export_with_real_session() -> None:
+    client, _, _ = make_client()
+    complete_login(client)
+
+    response = client.post(
+        "/api/exports/xlsx",
+        json={
+            "source_document": "source.docx",
+            "items": [{"number": 1, "summary": "Test", "content": "Export row"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response.content[:2] == b"PK"
+
+
 def test_frontend_passive_logout_clears_current_session_without_a_token() -> None:
     client, _, _ = make_client()
     complete_login(client)
@@ -327,7 +463,7 @@ def test_frontend_passive_logout_clears_current_session_without_a_token() -> Non
     assert client.get("/api/auth/me").json()["authenticated"] is False
 
 
-def test_sensitive_queries_are_hidden_from_access_logs_but_routes_receive_them() -> None:
+def test_unexpected_sensitive_queries_are_defensively_hidden_from_access_logs() -> None:
     settings = configured_settings()
     fake = FakeUISOAuthClient()
     application = create_app(settings)
@@ -349,9 +485,11 @@ def test_sensitive_queries_are_hidden_from_access_logs_but_routes_receive_them()
     assert_query_hidden_from_access_log(access_log_probe, "OAuth callback")
 
     access_log_probe.query_strings.clear()
+    # Pure front-end logout has no query. This unexpected value proves that any
+    # sensitive query arriving at the endpoint is still redacted defensively.
     passive_logout = client.get(
         "/api/auth/sso-logout",
-        params={"token": "provider-access-token"},
+        params={"token": "unexpected-sensitive-value"},
     )
 
     assert passive_logout.status_code == 204
@@ -376,9 +514,9 @@ def test_sensitive_queries_are_hidden_from_access_logs_but_routes_receive_them()
         ),
         (
             "/api/auth/sso-logout/",
-            {"token": "synthetic-token"},
-            {"token": ["synthetic-token"]},
-            "trailing-slash passive logout",
+            {"token": "unexpected-sensitive-value"},
+            {"token": ["unexpected-sensitive-value"]},
+            "trailing-slash passive logout defensive redaction",
         ),
     ],
 )
@@ -388,6 +526,8 @@ def test_trailing_slash_sensitive_queries_are_hidden_before_route_redirect(
     expected_query: dict[str, list[str]],
     route_name: str,
 ) -> None:
+    # Pure front-end logout has no query. The passive-logout case below keeps
+    # an explicitly unexpected sensitive value solely for defense-in-depth.
     application = create_app(configured_settings())
     access_log_probe = AccessLogScopeProbe(application)
     client = TestClient(access_log_probe, follow_redirects=False)

@@ -30,7 +30,7 @@
 6. UserInfo 必填字段缺失或类型错误时登录失败；本科生跳回前端并显示“当前应用暂不面向本科生开放”。
 7. 其他用户建立本应用会话并跳回固定前端地址。
 8. 所有文档、筛选、通知和导出 API 要求本地会话；健康检查及 OAuth 必需路由公开。
-9. 主动退出通过 `POST /api/auth/logout` 清除本地会话并 303 到 UIS 全局退出地址，`redirectToUrl` 只能使用配置中的固定前端地址。
+9. 主动退出通过 `POST /api/auth/logout` 清除本地会话并 303 到 UIS 全局退出地址，`redirectToUrl` 只能使用配置中的固定前端地址。该请求必须携带有效本地会话，以及与 `AUTH_FRONTEND_URL` 同源的 `Origin`，或在未携带 `Origin` 时携带同源 `Referer`；否则不清除会话且不跳转 UIS。
 10. UIS 前端被动退出在用户浏览器中异步调用 `GET /api/auth/sso-logout`。应用直接清除当前浏览器会话并返回无敏感信息的 204；该地址不接收 Token 参数。
 
 ## 后端模块边界
@@ -52,6 +52,7 @@
 - OAuth `state` 使用 `secrets.token_urlsafe(32)`，采用常量时间比较，单次使用并设置 10 分钟有效期。
 - 不接受用户传入的任意登录后跳转地址，避免开放重定向。
 - 平台即使以 HTTP 200 返回 `errcode`，也按 OAuth 失败处理；错误响应和日志不得包含凭据、授权码或 Token。
+- 所有 `/api/auth/*` 响应均发送 `Cache-Control: no-store`；`/api/auth/callback` 的规范和尾斜杠响应另发送 `Referrer-Policy: no-referrer`，覆盖成功、重定向、验证错误及服务端 HTTP 错误。
 
 ## 前端行为与视觉规范
 

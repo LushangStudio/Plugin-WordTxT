@@ -153,7 +153,9 @@ npm run dev
 - 登录回调地址：`https://lushangstudio.fudan.edu.cn/api/auth/callback`
 - 前端被动退出地址：`https://lushangstudio.fudan.edu.cn/api/auth/sso-logout`（选择手册 3.2.5.2.1“前端用户会话注销”，不传 `token`）
 
-主动退出时，后端固定向 UIS 全局退出地址提交 `redirectToLogin=true` 和上述 `AUTH_FRONTEND_URL`，不接受请求方覆盖返回地址。
+主动退出时，后端固定向 UIS 全局退出地址提交 `redirectToLogin=true` 和上述 `AUTH_FRONTEND_URL`，不接受请求方覆盖返回地址。该 `POST` 仅接受已有本地会话且来源与 `AUTH_FRONTEND_URL` 同源的浏览器请求：优先校验 `Origin`，缺失时校验 `Referer`；缺失、畸形或跨源请求会返回 403，不清除本地会话也不会跳转 UIS。
+
+所有 `/api/auth/*` 响应发送 `Cache-Control: no-store`；OAuth 回调（包括尾斜杠重定向）还发送 `Referrer-Policy: no-referrer`，避免回调参数在缓存或后续 Referer 中传播。
 
 代码和自动化测试已经覆盖本地 OAuth 协议行为，但在 UIS 下发真实 `client_id` 和 `client_secret` 前，不能完成或宣称真实 UIS 跳转、授权码交换、用户信息读取及全局退出联调。
 
