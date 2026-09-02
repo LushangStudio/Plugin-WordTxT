@@ -4,12 +4,36 @@ import type {
   GenerationSettings,
   HealthResponse,
   NoticeResponse,
+  AuthMeResponse,
   ParseDocumentResponse,
   ParsedItem,
   SortType,
 } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')
+
+type UnauthorizedHandler = (() => void) | null
+
+let unauthorizedHandler: UnauthorizedHandler = null
+
+export class UnauthorizedError extends Error {
+  constructor() {
+    super('登录状态已失效，请重新登录')
+    this.name = 'UnauthorizedError'
+  }
+}
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler): void {
+  unauthorizedHandler = handler
+}
+
+function getApiUrl(path: string): string {
+  return `${API_BASE}${path}`
+}
+
+function request(path: string, init?: RequestInit): Promise<Response> {
+  return fetch(getApiUrl(path), { ...init, credentials: 'include' })
+}
 
 async function parseError(response: Response): Promise<Error> {
   try {
@@ -21,13 +45,29 @@ async function parseError(response: Response): Promise<Error> {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, init)
+  const response = await request(path, init)
+  if (response.status === 401) {
+    unauthorizedHandler?.()
+    throw new UnauthorizedError()
+  }
   if (!response.ok) throw await parseError(response)
   return (await response.json()) as T
 }
 
 export function getHealth(): Promise<HealthResponse> {
   return requestJson('/health')
+}
+
+export function getCurrentUser(): Promise<AuthMeResponse> {
+  return requestJson('/auth/me')
+}
+
+export function getAuthLoginUrl(): string {
+  return getApiUrl('/auth/login')
+}
+
+export function getAuthLogoutUrl(): string {
+  return getApiUrl('/auth/logout')
 }
 
 export async function extractDocument(file: File): Promise<ExtractDocumentResponse> {
@@ -83,7 +123,7 @@ export async function exportWorkbook(
   sourceDocument: string,
   sortType: SortType,
 ): Promise<void> {
-  const response = await fetch(`${API_BASE}/exports/xlsx`, {
+  const response = await request('/exports/xlsx', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -102,6 +142,10 @@ export async function exportWorkbook(
       })),
     }),
   })
+  if (response.status === 401) {
+    unauthorizedHandler?.()
+    throw new UnauthorizedError()
+  }
   if (!response.ok) throw await parseError(response)
   const blob = await response.blob()
   const url = URL.createObjectURL(blob)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, type Component } from 'vue'
+import { onMounted, onUnmounted, reactive, ref, type Component } from 'vue'
 import { Columns2, FileInput, FileText, ListFilter, Settings2, Table2 } from '@lucide/vue'
 
 import AppHeader from './components/AppHeader.vue'
@@ -7,13 +7,16 @@ import ContentWorkflow from './components/ContentWorkflow.vue'
 import GenerationSettingsPanel from './components/GenerationSettings.vue'
 import ResultPanel from './components/ResultPanel.vue'
 import TableWorkflow from './components/TableWorkflow.vue'
-import { getHealth } from './services/api'
-import type { GeneratedResult, GenerationSettings } from './types'
+import { getAuthLoginUrl, getAuthLogoutUrl, getCurrentUser, getHealth, setUnauthorizedHandler } from './services/api'
+import type { AuthUser, GeneratedResult, GenerationSettings } from './types'
 
 const file = ref<File | null>(null)
 const activeWorkflow = ref<'content' | 'table'>('table')
 const aiConfigured = ref(false)
 const result = ref<GeneratedResult | null>(null)
+const authStatus = ref<'loading' | 'authenticated' | 'anonymous' | 'error'>('loading')
+const currentUser = ref<AuthUser | null>(null)
+const authMessage = ref(readAuthCallbackMessage())
 const settings = reactive<GenerationSettings>({
   userPrompt: '',
   header: '本周学工备忘如下：',
@@ -83,21 +86,66 @@ function showResult(value: GeneratedResult) {
   requestAnimationFrame(() => document.querySelector('#result-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
+function readAuthCallbackMessage(): string {
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('auth_error') !== 'undergraduate_not_allowed') return ''
+
+  url.searchParams.delete('auth_error')
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  return '当前应用暂不面向本科生开放'
+}
+
+function showAnonymousGate(): void {
+  currentUser.value = null
+  authStatus.value = 'anonymous'
+}
+
 onMounted(async () => {
+  setUnauthorizedHandler(showAnonymousGate)
+
   try {
+    const session = await getCurrentUser()
+    if (!session.authenticated || session.user === null) {
+      showAnonymousGate()
+      return
+    }
+
+    currentUser.value = session.user
+    authStatus.value = 'authenticated'
     const health = await getHealth()
     aiConfigured.value = health.ai_configured
   } catch {
     aiConfigured.value = false
+    if (authStatus.value === 'loading') authStatus.value = 'error'
   }
+
 })
+
+onUnmounted(() => setUnauthorizedHandler(null))
 </script>
 
 <template>
   <div class="min-h-screen bg-[#f4f7fb] text-slate-900">
-    <AppHeader :file="file" @file-change="setFile" />
+    <section v-if="authStatus === 'loading'" class="mx-auto flex min-h-screen w-full max-w-[1800px] items-center px-4 sm:px-6 xl:px-8">
+      <p class="border-l-4 border-blue-700 bg-white px-5 py-4 text-sm font-semibold text-slate-700 shadow-sm">正在确认登录状态</p>
+    </section>
 
-    <main class="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)_340px] xl:px-8">
+    <section v-else-if="authStatus === 'anonymous' || authStatus === 'error'" class="mx-auto flex min-h-screen w-full max-w-[1800px] items-center px-4 sm:px-6 xl:px-8">
+      <div class="max-w-xl border-l-4 border-blue-700 bg-white px-6 py-6 shadow-sm">
+        <p class="m-0 text-[11px] font-bold tracking-[0.18em] text-blue-700">UIS ACCESS</p>
+        <h1 class="mt-2 mb-0 text-2xl font-bold tracking-tight text-slate-950">学工备忘工作台</h1>
+        <p class="mt-3 mb-0 text-sm leading-6 text-slate-600">
+          {{ authStatus === 'error' ? '暂时无法确认登录状态，请稍后重试。' : '请使用复旦大学统一身份认证访问本工作台。' }}
+        </p>
+        <p v-if="authMessage" class="mt-3 mb-0 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{{ authMessage }}</p>
+        <a v-if="authStatus === 'anonymous'" :href="getAuthLoginUrl()" class="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2">使用 UIS 登录</a>
+      </div>
+    </section>
+
+    <template v-else-if="currentUser">
+      <AppHeader :file="file" :user="currentUser" :logout-url="getAuthLogoutUrl()" @file-change="setFile" />
+
+      <main class="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-5 px-4 py-5 sm:px-6 xl:grid-cols-[260px_minmax(0,1fr)_340px] xl:px-8">
       <aside class="self-start xl:sticky xl:top-5">
         <section class="overflow-x-hidden rounded-2xl border border-blue-100 bg-white text-slate-900 shadow-sm xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
           <div class="border-b border-blue-100 bg-blue-50 px-5 py-4 xl:sticky xl:top-0 xl:z-10">
@@ -173,6 +221,7 @@ onMounted(async () => {
       <aside id="result-panel" class="min-w-0 self-start scroll-mt-5 xl:sticky xl:top-5">
         <ResultPanel :result="result" />
       </aside>
-    </main>
+      </main>
+    </template>
   </div>
 </template>

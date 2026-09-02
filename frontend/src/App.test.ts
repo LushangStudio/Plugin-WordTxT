@@ -2,16 +2,44 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App.vue'
+import { extractDocument } from './services/api'
 
-function stubBackendHealth(aiConfigured: boolean) {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-    status: 'ok',
-    environment: 'test',
-    ai_configured: aiConfigured,
-  }), {
-    headers: { 'Content-Type': 'application/json' },
-    status: 200,
-  })))
+const authenticatedUser = {
+  user_id: '12345678',
+  user_name: '张三',
+  user_type: '研究生',
+}
+
+function stubBackend(
+  aiConfigured: boolean,
+  authenticated = true,
+  protectedRequest?: () => Response | Promise<Response>,
+) {
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+    const url = String(input)
+    if (url.endsWith('/auth/me')) {
+      return new Response(JSON.stringify({
+        authenticated,
+        user: authenticated ? authenticatedUser : null,
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+
+    if (url.endsWith('/health')) {
+      return new Response(JSON.stringify({
+        status: 'ok',
+        environment: 'test',
+        ai_configured: aiConfigured,
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
+      })
+    }
+
+    return protectedRequest?.() ?? new Response(null, { status: 404 })
+  }))
 }
 
 afterEach(() => {
@@ -20,7 +48,7 @@ afterEach(() => {
 
 describe('App workspace', () => {
   it('keeps upload controls without exposing developer service status', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -32,7 +60,7 @@ describe('App workspace', () => {
   })
 
   it('starts both work columns with the usage guide and general settings', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -49,7 +77,7 @@ describe('App workspace', () => {
   })
 
   it('uses single-line accordion headers without secondary helper text', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -69,7 +97,7 @@ describe('App workspace', () => {
   })
 
   it('keeps extraction controls reachable below a viewport-limited desktop guide', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -83,7 +111,7 @@ describe('App workspace', () => {
   })
 
   it('presents the final five-step static usage guide in order', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -110,7 +138,7 @@ describe('App workspace', () => {
   })
 
   it('uses the table extraction workflow by default with concise extraction labels', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -126,7 +154,7 @@ describe('App workspace', () => {
   })
 
   it('enables AI generation when the health response reports AI configured', async () => {
-    stubBackendHealth(true)
+    stubBackend(true)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -140,7 +168,7 @@ describe('App workspace', () => {
   })
 
   it('disables AI generation when the health response reports AI unavailable', async () => {
-    stubBackendHealth(false)
+    stubBackend(false)
     const wrapper = mount(App)
     await flushPromises()
 
@@ -154,7 +182,13 @@ describe('App workspace', () => {
   })
 
   it('keeps AI generation disabled when the health request fails', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => {
+  vi.stubGlobal('fetch', vi.fn(async (input: string | URL) => {
+      const url = String(input)
+      if (url.endsWith('/auth/me')) {
+        return new Response(JSON.stringify({ authenticated: true, user: authenticatedUser }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
       throw new TypeError('Network unavailable')
     }))
     const wrapper = mount(App)
@@ -165,6 +199,75 @@ describe('App workspace', () => {
     const generateButton = wrapper.findAll('button').find((button) => button.text().includes('根据筛选内容生成通知'))
     expect(generateButton).toBeDefined()
     expect(generateButton?.attributes('disabled')).toBeDefined()
+
+    wrapper.unmount()
+  })
+
+  it('hides the workspace behind a UIS login gate for anonymous visitors', async () => {
+    stubBackend(true, false)
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('请使用复旦大学统一身份认证访问本工作台')
+    expect(wrapper.get('a').attributes('href')).toBe('/api/auth/login')
+    expect(wrapper.find('main').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('shows the login gate when the initial session check receives 401', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Not authenticated' }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 401,
+    })))
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.find('main').exists()).toBe(false)
+    expect(wrapper.get('a').attributes('href')).toBe('/api/auth/login')
+
+    wrapper.unmount()
+  })
+
+  it('shows the authenticated workspace, user identity, and native logout form', async () => {
+    stubBackend(true)
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.find('main').exists()).toBe(true)
+    expect(wrapper.text()).toContain('张三')
+    expect(wrapper.text()).toContain('研究生')
+    expect(wrapper.get('form[action="/api/auth/logout"][method="post"]')).toBeDefined()
+
+    wrapper.unmount()
+  })
+
+  it('returns to the login gate after a protected request receives 401', async () => {
+    stubBackend(true, true, () => new Response(JSON.stringify({ detail: 'Not authenticated' }), {
+      headers: { 'Content-Type': 'application/json' },
+      status: 401,
+    }))
+    const wrapper = mount(App)
+    await flushPromises()
+
+    await expect(extractDocument(new File(['document'], 'memo.docx'))).rejects.toThrow('登录状态已失效')
+    await flushPromises()
+
+    expect(wrapper.find('main').exists()).toBe(false)
+    expect(wrapper.text()).toContain('请使用复旦大学统一身份认证访问本工作台')
+
+    wrapper.unmount()
+  })
+
+  it('shows the undergraduate access notice and removes only its callback parameter', async () => {
+    window.history.replaceState(null, '', '/?auth_error=undergraduate_not_allowed&from=uis#section')
+    stubBackend(true, false)
+    const wrapper = mount(App)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('当前应用暂不面向本科生开放')
+    expect(window.location.search).toBe('?from=uis')
+    expect(window.location.hash).toBe('#section')
 
     wrapper.unmount()
   })
