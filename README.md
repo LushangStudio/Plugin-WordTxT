@@ -145,8 +145,11 @@ npm run dev
 | `AUTH_SESSION_COOKIE_SECURE` | 只允许浏览器经 HTTPS 携带会话 Cookie | `true` |
 | `AUTH_SESSION_TTL_SECONDS` | 本应用会话有效期 | `28800`（8 小时） |
 | `AUTH_STATE_TTL_SECONDS` | 一次性 OAuth `state` 有效期 | `600`（10 分钟） |
+| `AUTH_UNDERGRADUATE_ALLOWLIST` | 允许登录的本科生 `user_id`；多人以英文逗号分隔 | 默认留空；仅联调时填写测试账号 |
 
 生产环境还应设置 `APP_ENV=production` 和 `FRONTEND_ORIGINS=https://lushangstudio.fudan.edu.cn`。当前实现不启用 PKCE；Token 请求使用 HTTP Basic 客户端认证，表单只提交 `grant_type` 和 `code`。
+
+本科生允许列表按 UIS 返回的 `user_id` 去除首尾空格后精确匹配，不支持通配符。变量为空时仍拒绝全部本科生；联调结束后应从服务器环境中删除测试账号并重启后端，原有测试账号会在下一次会话检查或业务请求时立即失效。
 
 在 UIS 平台登记以下固定地址：
 

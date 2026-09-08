@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     auth_session_cookie_secure: bool = False
     auth_session_ttl_seconds: int = Field(default=8 * 60 * 60, ge=1)
     auth_state_ttl_seconds: int = Field(default=10 * 60, ge=1)
+    auth_undergraduate_allowlist: str = ""
 
     max_upload_mb: int = Field(default=20, ge=1, le=100)
 
@@ -47,6 +48,14 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_origins.split(",") if origin.strip()]
+
+    @property
+    def undergraduate_allowlist_user_ids(self) -> frozenset[str]:
+        return frozenset(
+            user_id.strip()
+            for user_id in self.auth_undergraduate_allowlist.split(",")
+            if user_id.strip()
+        )
 
     @computed_field
     @property

@@ -46,6 +46,7 @@ def test_auth_settings_have_protocol_defaults_and_fail_closed_without_secrets(
         "AUTH_SESSION_COOKIE_SECURE",
         "AUTH_SESSION_TTL_SECONDS",
         "AUTH_STATE_TTL_SECONDS",
+        "AUTH_UNDERGRADUATE_ALLOWLIST",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -67,6 +68,7 @@ def test_auth_settings_have_protocol_defaults_and_fail_closed_without_secrets(
     assert settings.auth_session_cookie_secure is False
     assert settings.auth_session_ttl_seconds == 28_800
     assert settings.auth_state_ttl_seconds == 600
+    assert settings.undergraduate_allowlist_user_ids == frozenset()
     assert settings.auth_configured is False
     assert auth_settings().auth_configured is True
 
