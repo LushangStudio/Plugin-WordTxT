@@ -11,6 +11,8 @@ from fastapi.responses import RedirectResponse
 
 from app.core.auth import (
     establish_session,
+    is_user_allowed,
+    read_authorized_session_user,
     read_session_user,
 )
 from app.core.config import Settings, get_settings
@@ -129,7 +131,12 @@ async def callback(
             detail="UIS authentication failed",
         ) from None
 
-    if user_info.user_type == "本专科生":
+    session_user = SessionUser(
+        user_id=user_info.user_id,
+        user_name=user_info.user_name,
+        user_type=user_info.user_type,
+    )
+    if not is_user_allowed(session_user, settings):
         request.session.clear()
         return RedirectResponse(
             _fixed_url_with_query(
@@ -141,11 +148,7 @@ async def callback(
 
     establish_session(
         request,
-        SessionUser(
-            user_id=user_info.user_id,
-            user_name=user_info.user_name,
-            user_type=user_info.user_type,
-        ),
+        session_user,
     )
     return RedirectResponse(
         settings.auth_frontend_url,
@@ -154,8 +157,11 @@ async def callback(
 
 
 @router.get("/me", response_model=AuthMeResponse)
-def me(request: Request) -> AuthMeResponse:
-    user = read_session_user(request)
+def me(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> AuthMeResponse:
+    user = read_authorized_session_user(request, settings)
     return AuthMeResponse(authenticated=user is not None, user=user)
 
 

@@ -40,7 +40,13 @@ def configured_settings(**updates: object) -> Settings:
 
 
 class FakeUISOAuthClient:
-    def __init__(self, *, user_type: str = "研究生") -> None:
+    def __init__(
+        self,
+        *,
+        user_id: str = "01234567890",
+        user_type: str = "研究生",
+    ) -> None:
+        self.user_id = user_id
         self.user_type = user_type
         self.exchanged_codes: list[str] = []
         self.fetched_tokens: list[str] = []
@@ -59,7 +65,7 @@ class FakeUISOAuthClient:
     async def fetch_user_info(self, access_token: str) -> UISUserInfo:
         self.fetched_tokens.append(access_token)
         return UISUserInfo(
-            user_id="01234567890",
+            user_id=self.user_id,
             user_name="Test User",
             user_type=self.user_type,
             sessionId="uis-session",
@@ -358,6 +364,107 @@ def test_whitespace_padded_undergraduate_type_is_blocked_without_a_session() -> 
     assert fake.exchanged_codes == ["authorization-code"]
     assert fake.fetched_tokens == ["provider-access-token"]
     assert client.get("/api/auth/me").json()["authenticated"] is False
+    assert client.cookies.get(settings.auth_session_cookie_name) is None
+
+
+def test_undergraduate_allowlist_parses_exact_trimmed_user_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AUTH_UNDERGRADUATE_ALLOWLIST",
+        " allowed-user, second-user, ,allowed-user ",
+    )
+    settings = Settings(_env_file=None)
+
+    assert settings.undergraduate_allowlist_user_ids == frozenset(
+        {"allowed-user", "second-user"}
+    )
+    assert "allowed" not in settings.undergraduate_allowlist_user_ids
+
+
+def test_allowlisted_undergraduate_can_sign_in() -> None:
+    settings = configured_settings(
+        auth_undergraduate_allowlist="other-user, allowed-user",
+    )
+    client, fake, _ = make_client(
+        FakeUISOAuthClient(user_id="allowed-user", user_type=" 本专科生 "),
+        settings,
+    )
+    state = begin_login(client)
+
+    response = client.get(
+        "/api/auth/callback",
+        params={"code": "authorization-code", "state": state},
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "https://app.example"
+    assert fake.exchanged_codes == ["authorization-code"]
+    assert client.get("/api/auth/me").json() == {
+        "authenticated": True,
+        "user": {
+            "user_id": "allowed-user",
+            "user_name": "Test User",
+            "user_type": "本专科生",
+        },
+    }
+
+
+def test_non_allowlisted_undergraduate_stays_blocked_when_allowlist_is_set() -> None:
+    settings = configured_settings(
+        auth_undergraduate_allowlist="allowed-user",
+    )
+    client, _, _ = make_client(
+        FakeUISOAuthClient(user_id="different-user", user_type="本专科生"),
+        settings,
+    )
+    state = begin_login(client)
+
+    response = client.get(
+        "/api/auth/callback",
+        params={"code": "authorization-code", "state": state},
+    )
+
+    assert response.status_code == 303
+    assert parse_qs(urlparse(response.headers["location"]).query) == {
+        "auth_error": ["undergraduate_not_allowed"]
+    }
+    assert client.get("/api/auth/me").json()["authenticated"] is False
+
+
+def test_removing_undergraduate_from_allowlist_invalidates_me_session() -> None:
+    settings = configured_settings(
+        auth_undergraduate_allowlist="allowed-user",
+    )
+    client, _, _ = make_client(
+        FakeUISOAuthClient(user_id="allowed-user", user_type="本专科生"),
+        settings,
+    )
+    complete_login(client)
+
+    settings.auth_undergraduate_allowlist = ""
+    response = client.get("/api/auth/me")
+
+    assert response.status_code == 200
+    assert response.json() == {"authenticated": False, "user": None}
+    assert client.cookies.get(settings.auth_session_cookie_name) is None
+
+
+def test_removing_undergraduate_from_allowlist_blocks_business_api() -> None:
+    settings = configured_settings(
+        auth_undergraduate_allowlist="allowed-user",
+    )
+    client, _, _ = make_client(
+        FakeUISOAuthClient(user_id="allowed-user", user_type="本专科生"),
+        settings,
+    )
+    complete_login(client)
+
+    settings.auth_undergraduate_allowlist = ""
+    response = client.post("/api/documents/extract")
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Not authenticated"}
     assert client.cookies.get(settings.auth_session_cookie_name) is None
 
 
