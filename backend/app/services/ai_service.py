@@ -56,7 +56,14 @@ class AIService:
         temperature: float | None = None,
     ) -> str:
         self._require_configuration()
-        url = self.settings.deepseek_base_url.rstrip("/") + "/chat/completions"
+        url = self.settings.deepseek_endpoint_url.strip() or (
+            self.settings.deepseek_base_url.rstrip("/") + "/chat/completions"
+        )
+        headers = {"Content-Type": "application/json;charset=utf-8"}
+        if self.settings.deepseek_auth_mode == "appkey":
+            headers["appkey"] = self.settings.deepseek_api_key
+        else:
+            headers["Authorization"] = f"Bearer {self.settings.deepseek_api_key}"
         payload = {
             "model": model or self.settings.deepseek_generation_model,
             "messages": [
@@ -69,27 +76,26 @@ class AIService:
             async with httpx.AsyncClient(timeout=self.settings.deepseek_timeout_seconds) as client:
                 response = await client.post(
                     url,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.settings.deepseek_api_key}",
-                    },
+                    headers=headers,
                     json=payload,
                 )
                 response.raise_for_status()
         except httpx.TimeoutException as exc:
             raise HTTPException(status_code=504, detail="AI 请求超时，请稍后重试。") from exc
         except httpx.HTTPStatusError as exc:
-            message = exc.response.text[:500]
             raise HTTPException(
                 status_code=502,
-                detail=f"AI 服务返回错误（{exc.response.status_code}）：{message}",
+                detail=f"AI 服务返回错误（{exc.response.status_code}），请联系管理员检查接口配置。",
             ) from exc
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"无法连接 AI 服务：{exc}") from exc
 
-        data = response.json()
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        if not content:
+        try:
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+        except (ValueError, KeyError, IndexError, TypeError) as exc:
+            raise HTTPException(status_code=502, detail="AI 服务返回格式不兼容。") from exc
+        if not isinstance(content, str) or not content.strip():
             raise HTTPException(status_code=502, detail="AI 服务返回了空结果。")
         return str(content)
 

@@ -71,6 +71,21 @@ Copy-Item .env.example .env
 DEEPSEEK_API_KEY=你的密钥
 ```
 
+复旦 DeepSeek V4 Flash 网关使用以下后端配置（`DEEPSEEK_API_KEY` 填平台提供的 appkey）：
+
+```dotenv
+DEEPSEEK_ENDPOINT_URL=https://api.fudan.edu.cn/gw_ai_agent/v1/deepseek_v4_flash
+DEEPSEEK_AUTH_MODE=appkey
+DEEPSEEK_API_KEY=你的appkey
+DEEPSEEK_GENERATION_MODEL=deepseek-v4-flash-vllm
+DEEPSEEK_TABLE_NOTICE_MODEL=deepseek-v4-flash-vllm
+DEEPSEEK_FILTER_MODEL=deepseek-v4-flash-vllm
+DEEPSEEK_TEMPERATURE=0
+DEEPSEEK_TIMEOUT_SECONDS=120
+```
+
+`DEEPSEEK_ENDPOINT_URL` 优先于 `DEEPSEEK_BASE_URL`，按完整地址请求，不追加路径。`appkey` 模式只发送 `appkey` 请求头，不发送 Bearer 认证；默认 `bearer` 模式保留原 DeepSeek/OpenAI 兼容方式。返回结果读取 `choices[0].message.content`，不兼容的格式返回明确的 502 错误。修改环境变量后需要重启后端。
+
 需要连接 UIS 时还需设置 `UIS_OAUTH_CLIENT_ID`、`UIS_OAUTH_CLIENT_SECRET` 和至少 32 个字符的随机 `AUTH_SESSION_SECRET`。真实值只能放在后端环境中，不能写入 Git 或任何 `VITE_*` 变量。完整变量见下方“UIS OAuth 配置”。
 
 然后启动后端：

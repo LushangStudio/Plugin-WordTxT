@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,6 +19,9 @@ class Settings(BaseSettings):
     frontend_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     deepseek_base_url: str = "https://api.deepseek.com"
+    # Optional exact endpoint for gateways that do not expose /chat/completions.
+    deepseek_endpoint_url: str = ""
+    deepseek_auth_mode: Literal["bearer", "appkey"] = "bearer"
     deepseek_api_key: str = ""
     deepseek_generation_model: str = "deepseek-chat"
     deepseek_table_notice_model: str = "deepseek-chat"
@@ -65,7 +69,7 @@ class Settings(BaseSettings):
     @property
     def ai_configured(self) -> bool:
         return bool(
-            self.deepseek_base_url.strip()
+            (self.deepseek_endpoint_url.strip() or self.deepseek_base_url.strip())
             and self.deepseek_api_key.strip()
             and self.deepseek_generation_model.strip()
         )
