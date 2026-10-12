@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { FileText, LogOut, Upload, UserRound, X } from '@lucide/vue'
+import { ArrowLeft, ChevronDown, FileText, LogOut, Upload, UserRound, X } from '@lucide/vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 import UiButton from './ui/UiButton.vue'
 import type { AuthUser } from '../types'
@@ -13,6 +14,27 @@ defineProps<{
 const emit = defineEmits<{
   fileChange: [file: File | null]
 }>()
+
+const accountMenu = ref(false)
+const accountBlock = ref<HTMLElement | null>(null)
+const accountButton = ref<HTMLButtonElement | null>(null)
+const appListUrl = import.meta.env.VITE_APP_LIST_URL || '/'
+function closeAccount(event: Event) {
+  if (event instanceof KeyboardEvent && event.key === 'Escape') {
+    accountMenu.value = false
+    accountButton.value?.focus()
+  } else if (event.type === 'pointerdown' && !accountBlock.value?.contains(event.target as Node)) {
+    accountMenu.value = false
+  }
+}
+onMounted(() => {
+  document.addEventListener('pointerdown', closeAccount)
+  document.addEventListener('keydown', closeAccount)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', closeAccount)
+  document.removeEventListener('keydown', closeAccount)
+})
 
 function onFileChange(event: Event) {
   const input = event.target as HTMLInputElement
@@ -35,16 +57,22 @@ function onFileChange(event: Event) {
       </div>
 
       <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-        <div class="flex min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-700">
+        <a :href="appListUrl" class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">
+          <ArrowLeft :size="15" aria-hidden="true" />返回应用列表
+        </a>
+        <div ref="accountBlock" class="relative min-w-0">
+        <button ref="accountButton" type="button" aria-label="用户菜单" aria-controls="wordtxt-account-menu" :aria-expanded="accountMenu" class="flex w-full min-w-0 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" @click="accountMenu = !accountMenu">
           <UserRound :size="16" class="shrink-0 text-blue-700" aria-hidden="true" />
           <div class="min-w-0 leading-tight">
             <p class="m-0 truncate text-sm font-semibold text-slate-900">{{ user.user_name }}</p>
             <p class="m-0 truncate text-xs text-slate-500">{{ user.user_type }}</p>
           </div>
-          <form :action="logoutUrl" method="post" class="ml-1">
-            <UiButton variant="ghost" size="sm" type="submit" aria-label="退出登录">
+          <ChevronDown :size="15" class="ml-2 shrink-0 text-slate-500" aria-hidden="true" />
+        </button>
+          <form v-if="accountMenu" id="wordtxt-account-menu" :action="logoutUrl" method="post" class="absolute right-0 z-30 mt-2 min-w-48 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg shadow-slate-900/10">
+            <UiButton variant="danger" size="md" type="submit" class="w-full" aria-label="退出复旦UIS">
               <LogOut :size="15" aria-hidden="true" />
-              退出
+              退出复旦UIS
             </UiButton>
           </form>
         </div>

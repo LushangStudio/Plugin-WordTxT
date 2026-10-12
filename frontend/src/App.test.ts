@@ -237,7 +237,12 @@ describe('App workspace', () => {
     expect(wrapper.find('main').exists()).toBe(true)
     expect(wrapper.text()).toContain('张三')
     expect(wrapper.text()).toContain('研究生')
+    expect(wrapper.find('form[action="/api/auth/logout"]').exists()).toBe(false)
+    await wrapper.get('button[aria-label="用户菜单"]').trigger('click')
     expect(wrapper.get('form[action="/api/auth/logout"][method="post"]')).toBeDefined()
+    expect(wrapper.get('button[aria-label="退出复旦UIS"]').text()).toContain('退出复旦UIS')
+    expect(wrapper.get('button[aria-label="退出复旦UIS"]').classes()).toContain('text-red-700')
+    expect(wrapper.find('a[href="/"]').text()).toContain('返回应用列表')
 
     wrapper.unmount()
   })

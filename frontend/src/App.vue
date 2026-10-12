@@ -17,6 +17,7 @@ const result = ref<GeneratedResult | null>(null)
 const authStatus = ref<'loading' | 'authenticated' | 'anonymous' | 'error'>('loading')
 const currentUser = ref<AuthUser | null>(null)
 const authMessage = ref(readAuthCallbackMessage())
+const appListUrl = import.meta.env.VITE_APP_LIST_URL || '/'
 const settings = reactive<GenerationSettings>({
   userPrompt: '',
   header: '本周学工备忘如下：',
@@ -139,6 +140,7 @@ onUnmounted(() => setUnauthorizedHandler(null))
         </p>
         <p v-if="authMessage" class="mt-3 mb-0 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">{{ authMessage }}</p>
         <a v-if="authStatus === 'anonymous'" :href="getAuthLoginUrl()" class="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-blue-700 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2">使用 UIS 登录</a>
+        <a :href="appListUrl" class="mt-5 ml-3 inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">返回应用列表</a>
       </div>
     </section>
 
