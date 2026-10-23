@@ -1,11 +1,11 @@
 {
   "name": "student-affairs-memo-frontend",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "vue-tsc -b && vite build && node scripts/check-webvpn-build.mjs",
     "test": "vitest run",
     "type-check": "vue-tsc -b",
     "preview": "vite preview"

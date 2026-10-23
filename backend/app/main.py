@@ -12,7 +12,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     actual_settings = settings or get_settings()
     application = FastAPI(
         title="学工备忘 API",
-        version="1.0.0",
+        version="1.0.1",
         description="DOCX 解析、事项筛选、通知生成与 Excel 导出服务。",
     )
     application.add_middleware(
